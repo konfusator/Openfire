@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -99,8 +100,8 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
      */
     private static Pattern pattern = Pattern.compile("[a-zA-Z]");
 
-    private Collection<String> authenticatedDomains = new HashSet<String>();
-    private final Collection<String> hostnames = new HashSet<String>();
+    private Collection<String> authenticatedDomains = new HashSet<>();
+    private final Collection<String> hostnames = new HashSet<>();
     private OutgoingServerSocketReader socketReader;
 
     /**
@@ -272,7 +273,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
 
             XMPPPacketReader reader = new XMPPPacketReader();
             reader.getXPPParser().setInput(new InputStreamReader(socket.getInputStream(),
-                    CHARSET));
+                    StandardCharsets.UTF_8));
             // Get the answer from the Receiving Server
             XmlPullParser xpp = reader.getXPPParser();
             for (int eventType = xpp.getEventType(); eventType != XmlPullParser.START_TAG;) {
@@ -333,15 +334,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
         catch (SSLHandshakeException e) {
             Log.debug("LocalOutgoingServerSession: Handshake error while creating secured outgoing session to remote " +
                     "server: " + hostname + "(DNS lookup: " + realHostname + ":" + realPort +
-                    "):" + e.toString());
-            // Close the connection
-            if (connection != null) {
-                connection.close();
-            }
-        }
-        catch (XmlPullParserException e) {
-            Log.warn("Error creating secured outgoing session to remote server: " + hostname +
-                    "(DNS lookup: " + realHostname + ":" + realPort + "): " + e.toString());
+                    "):", e);
             // Close the connection
             if (connection != null) {
                 connection.close();
@@ -349,7 +342,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
         }
         catch (Exception e) {
             Log.error("Error creating secured outgoing session to remote server: " + hostname +
-                    "(DNS lookup: " + realHostname + ":" + realPort + "): " + e.toString());
+                    "(DNS lookup: " + realHostname + ":" + realPort + ")", e);
             // Close the connection
             if (connection != null) {
                 connection.close();
@@ -378,16 +371,16 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
         if (proceed != null && proceed.getName().equals("proceed")) {
             log.debug("Negotiating TLS...");
             try {
-                boolean needed = JiveGlobals.getBooleanProperty(ConnectionSettings.Server.TLS_CERTIFICATE_VERIFY, true) &&
-                        		 JiveGlobals.getBooleanProperty(ConnectionSettings.Server.TLS_CERTIFICATE_CHAIN_VERIFY, true) &&
-                        		 !JiveGlobals.getBooleanProperty(ConnectionSettings.Server.TLS_ACCEPT_SELFSIGNED_CERTS, false);
-                connection.startTLS(true, hostname, needed ? Connection.ClientAuth.needed : Connection.ClientAuth.wanted);
+//                boolean needed = JiveGlobals.getBooleanProperty(ConnectionSettings.Server.TLS_CERTIFICATE_VERIFY, true) &&
+//                        		 JiveGlobals.getBooleanProperty(ConnectionSettings.Server.TLS_CERTIFICATE_CHAIN_VERIFY, true) &&
+//                        		 !JiveGlobals.getBooleanProperty(ConnectionSettings.Server.TLS_ACCEPT_SELFSIGNED_CERTS, false);
+                connection.startTLS(true);
             } catch(Exception e) {
                 log.debug("Got an exception whilst negotiating TLS: " + e.getMessage());
                 throw e;
             }
             log.debug("TLS negotiation was successful.");
-            if (!SASLAuthentication.verifyCertificates(connection.getPeerCertificates(), hostname)) {
+            if (!SASLAuthentication.verifyCertificates(connection.getPeerCertificates(), hostname, true)) {
                 log.debug("X.509/PKIX failure on outbound session");
                 if (ServerDialback.isEnabled() || ServerDialback.isEnabledForSelfSigned()) {
                     log.debug("Will continue with dialback.");
@@ -401,7 +394,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
             connection.deliverRawText(openingStream.toString());
 
             // Reset the parser to use the new secured reader
-            xpp.setInput(new InputStreamReader(connection.getTLSStreamHandler().getInputStream(), CHARSET));
+            xpp.setInput(new InputStreamReader(connection.getTLSStreamHandler().getInputStream(), StandardCharsets.UTF_8));
             // Skip new stream element
             for (int eventType = xpp.getEventType(); eventType != XmlPullParser.START_TAG;) {
                 eventType = xpp.next();
@@ -412,8 +405,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
             features = reader.parseDocument().getRootElement();
             if (features != null) {
                 // Check if we can use stream compression
-                String policyName = JiveGlobals.getProperty(ConnectionSettings.Server.COMPRESSION_SETTINGS, Connection.CompressionPolicy.disabled.toString());
-                Connection.CompressionPolicy compressionPolicy = Connection.CompressionPolicy.valueOf(policyName);
+                final Connection.CompressionPolicy compressionPolicy = connection.getConfiguration().getCompressionPolicy();
                 if (Connection.CompressionPolicy.optional == compressionPolicy) {
                     // Verify if the remote server supports stream compression
                     Element compression = features.element("compression");
@@ -446,7 +438,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
                                 ZInputStream in = new ZInputStream(
                                         connection.getTLSStreamHandler().getInputStream());
                                 in.setFlushMode(JZlib.Z_PARTIAL_FLUSH);
-                                xpp.setInput(new InputStreamReader(in, CHARSET));
+                                xpp.setInput(new InputStreamReader(in, StandardCharsets.UTF_8));
                                 // Skip the opening stream sent by the server
                                 for (int eventType = xpp.getEventType(); eventType != XmlPullParser.START_TAG;)
                                 {
@@ -551,7 +543,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
             // Reset the parser
             //xpp.resetInput();
             //             // Reset the parser to use the new secured reader
-            xpp.setInput(new InputStreamReader(connection.getTLSStreamHandler().getInputStream(), CHARSET));
+            xpp.setInput(new InputStreamReader(connection.getTLSStreamHandler().getInputStream(), StandardCharsets.UTF_8));
             // Skip the opening stream sent by the server
             for (int eventType = xpp.getEventType(); eventType != XmlPullParser.START_TAG;) {
                 eventType = xpp.next();
@@ -598,17 +590,20 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
     @Override
 	boolean canProcess(Packet packet) {
         String senderDomain = packet.getFrom().getDomain();
+        boolean processed = true;
         if (!getAuthenticatedDomains().contains(senderDomain)) {
-            synchronized (senderDomain.intern()) {
+            synchronized (("Auth::" + senderDomain).intern()) {
                 if (!getAuthenticatedDomains().contains(senderDomain) &&
                         !authenticateSubdomain(senderDomain, packet.getTo().getDomain())) {
                     // Return error since sender domain was not validated by remote server
-                    returnErrorToSender(packet);
-                    return false;
+                    processed = false;
                 }
             }
         }
-        return true;
+        if (!processed) {
+            returnErrorToSender(packet);
+        }
+        return processed;
     }
 
     @Override
@@ -618,6 +613,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
         }
     }
 
+    @Override
     public boolean authenticateSubdomain(String domain, String hostname) {
         if (!usingServerDialback) {
             // Using SASL so just assume that the domain was validated
@@ -689,20 +685,24 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
         }
     }
 
+    @Override
     public Collection<String> getAuthenticatedDomains() {
         return Collections.unmodifiableCollection(authenticatedDomains);
     }
 
+    @Override
     public void addAuthenticatedDomain(String domain) {
         authenticatedDomains.add(domain);
     }
 
+    @Override
     public Collection<String> getHostnames() {
         synchronized (hostnames) {
             return Collections.unmodifiableCollection(hostnames);
         }
     }
 
+    @Override
     public void addHostname(String hostname) {
         synchronized (hostnames) {
             hostnames.add(hostname);

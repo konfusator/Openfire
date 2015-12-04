@@ -20,6 +20,7 @@ package org.jivesoftware.openfire.clearspace;
 
 import static org.jivesoftware.openfire.clearspace.ClearspaceManager.HttpType.POST;
 
+import java.net.URLEncoder;
 import java.util.Date;
 import java.util.List;
 
@@ -57,6 +58,7 @@ public class ClearspaceSecurityAuditProvider implements SecurityAuditProvider {
      * web service, provided by Clearspace.
      * @see org.jivesoftware.openfire.security.SecurityAuditProvider#logEvent(String, String, String)
      */
+    @Override
     public void logEvent(String username, String summary, String details) {
         try {
             // Request to log event
@@ -69,7 +71,7 @@ public class ClearspaceSecurityAuditProvider implements SecurityAuditProvider {
             // Un-escape username.
             username = JID.unescapeNode(username);
             // Encode potentially non-ASCII characters
-            username = URLUTF8Encoder.encode(username);
+            username = URLEncoder.encode(username, "UTF-8");
             userE.addText(username);
             Element descE = rootE.addElement("description");
             if (summary != null) {
@@ -99,6 +101,7 @@ public class ClearspaceSecurityAuditProvider implements SecurityAuditProvider {
      * it refers the admin to a URL where they can read the logs.
      * @see org.jivesoftware.openfire.security.SecurityAuditProvider#getEvents(String, Integer, Integer, java.util.Date, java.util.Date)
      */
+    @Override
     public List<SecurityAuditEvent> getEvents(String username, Integer skipEvents, Integer numEvents, Date startTime, Date endTime) {
         // This is not used.
         return null;
@@ -109,6 +112,7 @@ public class ClearspaceSecurityAuditProvider implements SecurityAuditProvider {
      * it refers the admin to a URL where they can read the logs.
      * @see org.jivesoftware.openfire.security.SecurityAuditProvider#getEvent(Integer)
      */
+    @Override
     public SecurityAuditEvent getEvent(Integer msgID) throws EventNotFoundException {
         // This is not used.
         return null;
@@ -119,6 +123,7 @@ public class ClearspaceSecurityAuditProvider implements SecurityAuditProvider {
      * it refers the admin to a URL where they can read the logs.
      * @see org.jivesoftware.openfire.security.SecurityAuditProvider#getEventCount() 
      */
+    @Override
     public Integer getEventCount() {
         // This is not used.
         return null;
@@ -129,6 +134,7 @@ public class ClearspaceSecurityAuditProvider implements SecurityAuditProvider {
      * it refers the admin to a URL where they can read the logs.
      * @see org.jivesoftware.openfire.security.SecurityAuditProvider#isWriteOnly()
      */
+    @Override
     public boolean isWriteOnly() {
         return true;
     }
@@ -138,6 +144,7 @@ public class ClearspaceSecurityAuditProvider implements SecurityAuditProvider {
      * it refers the admin to a URL where they can read the logs.
      * @see org.jivesoftware.openfire.security.SecurityAuditProvider#getAuditURL()
      */
+    @Override
     public String getAuditURL() {
         String url = ClearspaceManager.getInstance().getConnectionURI();
         if (url != null) {
@@ -153,6 +160,7 @@ public class ClearspaceSecurityAuditProvider implements SecurityAuditProvider {
      * Clearspace handles logging it's own user events.
      * @see org.jivesoftware.openfire.security.SecurityAuditProvider#blockUserEvents()
      */
+    @Override
     public boolean blockUserEvents() {
         return true;
     }
@@ -161,6 +169,7 @@ public class ClearspaceSecurityAuditProvider implements SecurityAuditProvider {
      * Clearspace handles logging it's own group events.
      * @see org.jivesoftware.openfire.security.SecurityAuditProvider#blockGroupEvents()
      */
+    @Override
     public boolean blockGroupEvents() {
         return true;
     }

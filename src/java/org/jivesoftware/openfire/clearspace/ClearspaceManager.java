@@ -32,6 +32,7 @@ import java.net.NetworkInterface;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
@@ -68,6 +69,7 @@ import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
 import org.dom4j.Node;
 import org.dom4j.io.XMPPPacketReader;
+import org.jivesoftware.openfire.ConnectionManager;
 import org.jivesoftware.openfire.IQRouter;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.XMPPServerInfo;
@@ -85,6 +87,9 @@ import org.jivesoftware.openfire.muc.spi.MultiUserChatServiceImpl;
 import org.jivesoftware.openfire.net.MXParser;
 import org.jivesoftware.openfire.session.ComponentSession;
 import org.jivesoftware.openfire.session.LocalClientSession;
+import org.jivesoftware.openfire.spi.ConnectionConfiguration;
+import org.jivesoftware.openfire.spi.ConnectionManagerImpl;
+import org.jivesoftware.openfire.spi.ConnectionType;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.AlreadyExistsException;
 import org.jivesoftware.util.CertificateEventListener;
@@ -164,7 +169,7 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
         };
 
         // Add a new exception map from CS to OF and it will be automatically translated.
-        exceptionMap = new HashMap<String, String>();
+        exceptionMap = new HashMap<>();
         exceptionMap.put("com.jivesoftware.base.UserNotFoundException", "org.jivesoftware.openfire.user.UserNotFoundException");
         exceptionMap.put("com.jivesoftware.base.UserAlreadyExistsException", "org.jivesoftware.openfire.user.UserAlreadyExistsException");
         exceptionMap.put("com.jivesoftware.base.GroupNotFoundException", "org.jivesoftware.openfire.group.GroupNotFoundException");
@@ -195,7 +200,7 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
     /**
      * Keep the domains of Clearspace components
      */
-    private final List<String> clearspaces = new ArrayList<String>();
+    private final List<String> clearspaces = new ArrayList<>();
 
     /**
      * Provides singleton access to an instance of the ClearspaceManager class.
@@ -233,16 +238,19 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
         // makes it easier to perform LdapManager testing.
         this.properties = new Map<String, String>() {
 
+            @Override
             public String get(Object key) {
                 return JiveGlobals.getProperty((String) key);
             }
 
+            @Override
             public String put(String key, String value) {
                 JiveGlobals.setProperty(key, value);
                 // Always return null since XMLProperties doesn't support the normal semantics.
                 return null;
             }
 
+            @Override
             public String remove(Object key) {
                 JiveGlobals.deleteProperty((String) key);
                 // Always return null since XMLProperties doesn't support the normal semantics.
@@ -250,36 +258,45 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
             }
 
 
+            @Override
             public int size() {
                 return 0;
             }
 
+            @Override
             public boolean isEmpty() {
                 return false;
             }
 
+            @Override
             public boolean containsKey(Object key) {
                 return false;
             }
 
+            @Override
             public boolean containsValue(Object value) {
                 return false;
             }
 
+            @Override
             public void putAll(Map<? extends String, ? extends String> t) {
             }
 
+            @Override
             public void clear() {
             }
 
+            @Override
             public Set<String> keySet() {
                 return null;
             }
 
+            @Override
             public Collection<String> values() {
                 return null;
             }
 
+            @Override
             public Set<Entry<String, String>> entrySet() {
                 return null;
             }
@@ -339,9 +356,9 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
         sharedSecret = properties.get("clearspace.sharedSecret");
 
         // Creates the cache maps
-        userIDCache = new DefaultCache<String, Long>("clearspace.userid", 1000, JiveConstants.DAY);
-        groupIDCache = new DefaultCache<String, Long>("clearspace.groupid", 1000, JiveConstants.DAY);
-        usernameCache = new DefaultCache<Long, String>("clearspace.username", 1000, JiveConstants.DAY);
+        userIDCache = new DefaultCache<>("clearspace.userid", 1000, JiveConstants.DAY);
+        groupIDCache = new DefaultCache<>("clearspace.groupid", 1000, JiveConstants.DAY);
+        usernameCache = new DefaultCache<>("clearspace.username", 1000, JiveConstants.DAY);
 
 
         if (Log.isDebugEnabled()) {
@@ -386,7 +403,7 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
             // Un-escape username.
             username = JID.unescapeNode(username);
             // Encode potentially non-ASCII characters
-            username = URLUTF8Encoder.encode(username);
+            username = URLEncoder.encode(username, "UTF-8");
             String path = ClearspaceAuthProvider.URL_PREFIX + "authenticate/" + username + "/" + password;
             executeRequest(GET, path);
             return true;
@@ -698,7 +715,7 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
 
     private List<String> getServerInterfaces() {
 
-        List<String> bindInterfaces = new ArrayList<String>();
+        List<String> bindInterfaces = new ArrayList<>();
 
         String interfaceName = JiveGlobals.getXMLProperty("network.interface");
         String bindInterface = null;
@@ -756,8 +773,6 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
             rootE.addElement("newSecret").setText(newSecret);
 
             executeRequest(POST, path, groupDoc.asXML());
-        } catch (UnauthorizedException ue) {
-            Log.error("Error updating the password of Clearspace", ue);
         } catch (Exception e) {
             Log.error("Error updating the password of Clearspace", e);
         }
@@ -767,12 +782,14 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
     private void updateClearspaceClientSettings() {
         String xmppBoshSslPort = "0";
         String xmppBoshPort = "0";
-        String xmppPort = String.valueOf(XMPPServer.getInstance().getConnectionManager().getClientListenerPort());
+        final ConnectionManagerImpl connectionManager = ( (ConnectionManagerImpl) XMPPServer.getInstance().getConnectionManager() );
+        final ConnectionConfiguration configuration = connectionManager.getListener( ConnectionType.SOCKET_C2S, false ).generateConnectionConfiguration();
+        String xmppPort = String.valueOf( configuration.getPort() );
         if (JiveGlobals.getBooleanProperty(HttpBindManager.HTTP_BIND_ENABLED, HttpBindManager.HTTP_BIND_ENABLED_DEFAULT)) {
             int boshSslPort = HttpBindManager.getInstance().getHttpBindSecurePort();
             int boshPort = HttpBindManager.getInstance().getHttpBindUnsecurePort();
             try {
-                if (HttpBindManager.getInstance().isHttpsBindActive() && LocalClientSession.getTLSPolicy() != org.jivesoftware.openfire.Connection.TLSPolicy.disabled) {
+                if (HttpBindManager.getInstance().isHttpsBindActive() && configuration.getTlsPolicy() != org.jivesoftware.openfire.Connection.TLSPolicy.disabled) {
                     xmppBoshSslPort = String.valueOf(boshSslPort);
                 }
             }
@@ -796,14 +813,13 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
             rootE.addElement("tcpPort").setText(xmppPort);
 
             executeRequest(POST, path, groupDoc.asXML());
-        } catch (UnauthorizedException ue) {
-            Log.error("Error updating the client settings of Clearspace", ue);
         } catch (Exception e) {
             Log.error("Error updating the client settings of Clearspace", e);
         }
 
     }
 
+    @Override
     public void serviceEnabled(boolean enabled) throws ModificationNotAllowedException {
         // Do not let admins shutdown the external component service
         if (!enabled) {
@@ -811,19 +827,23 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
         }
     }
 
+    @Override
     public void portChanged(int newPort) throws ModificationNotAllowedException {
         startClearspaceConfig();
     }
 
+    @Override
     public void defaultSecretChanged(String newSecret) throws ModificationNotAllowedException {
         // Do nothing
     }
 
+    @Override
     public void permissionPolicyChanged(ExternalComponentManager.PermissionPolicy newPolicy)
             throws ModificationNotAllowedException {
         // Do nothing
     }
 
+    @Override
     public void componentAllowed(String subdomain, ExternalComponentConfiguration configuration)
             throws ModificationNotAllowedException {
         if (subdomain.startsWith("clearspace")) {
@@ -831,18 +851,21 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
         }
     }
 
+    @Override
     public void componentBlocked(String subdomain) throws ModificationNotAllowedException {
         if (subdomain.startsWith("clearspace")) {
             throw new ModificationNotAllowedException("Communication with Clearspace cannot be blocked.");
         }
     }
 
+    @Override
     public void componentSecretUpdated(String subdomain, String newSecret) throws ModificationNotAllowedException {
         if (subdomain.startsWith("clearspace")) {
             updateClearspaceSharedSecret(newSecret);
         }
     }
 
+    @Override
     public void componentConfigurationDeleted(String subdomain) throws ModificationNotAllowedException {
         // Do not let admins delete configuration of Clearspace component
         if (subdomain.startsWith("clearspace")) {
@@ -1022,7 +1045,7 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
             //Tries to create an instance with the message
             Exception exception;
             try {
-                Class exceptionClass = Class.forName(className);
+                Class<?> exceptionClass = Class.forName(className);
                 if (message == null) {
                     exception = (Exception) exceptionClass.newInstance();
                 } else {
@@ -1064,10 +1087,12 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
 
         // Un-escape username.
         String unescapedUsername = JID.unescapeNode(username);
-        // Encode potentially non-ASCII characters
-        unescapedUsername = URLUTF8Encoder.encode(unescapedUsername);
+
         // Gets the user's ID from Clearspace
         try {
+            // Encode potentially non-ASCII characters
+            unescapedUsername = URLEncoder.encode(unescapedUsername, "UTF-8");
+
             String path = ClearspaceUserProvider.USER_URL_PREFIX + "users/" + unescapedUsername;
             Element element = executeRequest(org.jivesoftware.openfire.clearspace.ClearspaceManager.HttpType.GET, path);
 
@@ -1152,7 +1177,7 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
         }
         try {
             // Encode potentially non-ASCII characters
-            groupname = URLUTF8Encoder.encode(groupname);
+            groupname = URLEncoder.encode(groupname, "UTF-8");
             String path = ClearspaceGroupProvider.URL_PREFIX + "groups/" + groupname;
             Element element = executeRequest(org.jivesoftware.openfire.clearspace.ClearspaceManager.HttpType.GET, path);
 
@@ -1204,13 +1229,15 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
             Collections.rotate(clearspaces, 1);
         }
         packet.setTo(component);
-        final LinkedBlockingQueue<IQ> answer = new LinkedBlockingQueue<IQ>(8);
+        final LinkedBlockingQueue<IQ> answer = new LinkedBlockingQueue<>(8);
         final IQRouter router = XMPPServer.getInstance().getIQRouter();
         router.addIQResultListener(packet.getID(), new IQResultListener() {
+            @Override
             public void receivedAnswer(IQ packet) {
                 answer.offer(packet);
             }
 
+            @Override
             public void answerTimeout(String packetId) {
                 Log.warn("No answer from Clearspace was received for IQ stanza: " + packet);
             }
@@ -1225,15 +1252,18 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
         return reply;
     }
 
+    @Override
     public void componentRegistered(JID componentJID) {
         // Do nothing
     }
 
+    @Override
     public void componentUnregistered(JID componentJID) {
         // Remove stored information about this component
         clearspaces.remove(componentJID.getDomain());
     }
 
+    @Override
     public void componentInfoReceived(IQ iq) {
         // Check if it's a Clearspace component
         boolean isClearspace = false;
@@ -1296,6 +1326,7 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
         return System.currentTimeMillis() - time < JiveConstants.MINUTE;
     }
 
+    @Override
     public void propertySet(String property, Map params) {
         if (property.equalsIgnoreCase(HttpBindManager.HTTP_BIND_ENABLED) ||
                 property.equalsIgnoreCase(HttpBindManager.HTTP_BIND_PORT) ||
@@ -1305,6 +1336,7 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
         }
     }
 
+    @Override
     public void propertyDeleted(String property, Map params) {
         if (property.equalsIgnoreCase(HttpBindManager.HTTP_BIND_ENABLED) ||
                 property.equalsIgnoreCase(HttpBindManager.HTTP_BIND_PORT) ||
@@ -1314,20 +1346,25 @@ public class ClearspaceManager extends BasicModule implements ExternalComponentM
         }
     }
 
+    @Override
     public void xmlPropertySet(String property, Map params) {
     }
 
+    @Override
     public void xmlPropertyDeleted(String property, Map params) {
     }
 
+    @Override
     public void certificateCreated(KeyStore keyStore, String alias, X509Certificate cert) {
         updateClearspaceClientSettings();
     }
 
+    @Override
     public void certificateDeleted(KeyStore keyStore, String alias) {
         updateClearspaceClientSettings();
     }
 
+    @Override
     public void certificateSigned(KeyStore keyStore, String alias, List<X509Certificate> certificates) {
     }
 

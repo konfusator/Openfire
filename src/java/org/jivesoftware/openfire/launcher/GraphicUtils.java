@@ -39,7 +39,7 @@ public final class GraphicUtils {
     };
     protected final static MediaTracker tracker = new MediaTracker(component);
 
-    private static Hashtable imageCache = new Hashtable();
+    private static Hashtable<String, Image> imageCache = new Hashtable<>();
 
     private GraphicUtils() {
     }
@@ -249,19 +249,6 @@ public final class GraphicUtils {
      * Returns the first component in the tree of <code>c</code> that can accept
      * the focus.
      *
-     * @param c the root of the component hierarchy to search
-     * @see #focusComponentOrChild
-     * @deprecated replaced by {@link #getFocusableComponentOrChild(Component, boolean)}
-     */
-    @Deprecated
-	public static Component getFocusableComponentOrChild(Component c) {
-        return getFocusableComponentOrChild(c, false);
-    }
-
-    /**
-     * Returns the first component in the tree of <code>c</code> that can accept
-     * the focus.
-     *
      * @param c       the root of the component hierarchy to search
      * @param deepest if <code>deepest</code> is true the method will return the first and deepest component that can accept the
      *                focus.  For example, if both a child and its parent are focusable and <code>deepest</code> is true, the child is
@@ -355,7 +342,7 @@ public final class GraphicUtils {
                 return null;
             }
 
-            Image image = (Image) imageCache.get(url.toString());
+            Image image = imageCache.get(url.toString());
 
             if (image == null) {
                 image = Toolkit.getDefaultToolkit().createImage(url);

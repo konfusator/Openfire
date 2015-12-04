@@ -22,6 +22,7 @@ import static org.jivesoftware.openfire.clearspace.ClearspaceManager.HttpType.GE
 import static org.jivesoftware.openfire.clearspace.WSUtils.getReturn;
 import static org.jivesoftware.openfire.clearspace.WSUtils.parseStringArray;
 
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -51,10 +52,12 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
     public ClearspaceGroupProvider() {
     }
 
+    @Override
     public Group getGroup(String name) throws GroupNotFoundException {
         return translateGroup(getGroupByName(name));
     }
 
+    @Override
     public int getGroupCount() {
         try {
             String path = URL_PREFIX + "socialGroupCount";
@@ -66,14 +69,16 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
         }
     }
 
+    @Override
     public Collection<String> getSharedGroupNames() {
         // Return all social group names since every social group is a shared group
         return getGroupNames();
     }
 
-	public Collection<String> getSharedGroupNames(JID user) {
+    @Override
+    public Collection<String> getSharedGroupNames(JID user) {
 		// TODO: is there a better way to get the shared Clearspace groups for a given user?
-		Collection<String> result = new ArrayList<String>();
+		Collection<String> result = new ArrayList<>();
 		Iterator<Group> sharedGroups = new GroupCollection(getGroupNames()).iterator();
 		while (sharedGroups.hasNext()) {
 			Group group = sharedGroups.next();
@@ -84,7 +89,8 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
 		return result;
 	}
 
-	public Collection<String> getGroupNames() {
+    @Override
+    public Collection<String> getGroupNames() {
         try {
             String path = URL_PREFIX + "socialGroupNames";
             Element element = ClearspaceManager.getInstance().executeRequest(GET, path);
@@ -96,6 +102,7 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
         }
     }
 
+    @Override
     public Collection<String> getGroupNames(int startIndex, int numResults) {
         try {
             String path = URL_PREFIX + "socialGroupNamesBounded/" + startIndex + "/" + numResults;
@@ -108,6 +115,7 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
         }
     }
 
+    @Override
     public Collection<String> getGroupNames(JID user) {
         try {
             long userID = ClearspaceManager.getInstance().getUserID(user);
@@ -153,8 +161,8 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
         }
 
         // Get the members and administrators
-        Collection<JID> members = new ArrayList<JID>();
-        Collection<JID> administrators = new ArrayList<JID>();
+        Collection<JID> members = new ArrayList<>();
+        Collection<JID> administrators = new ArrayList<>();
         try {
             XMPPServer server = XMPPServer.getInstance();
 
@@ -180,7 +188,7 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
             // this won't happen, the group exists.
         }
 
-        Map<String, String> properties = new HashMap<String, String>();
+        Map<String, String> properties = new HashMap<>();
 
         // Type 0 is OPEN
         if (type == 0) {
@@ -213,7 +221,7 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
     private Element getGroupByName(String name) throws GroupNotFoundException {
         try {
             // Encode potentially non-ASCII characters
-            name = URLUTF8Encoder.encode(name);
+            name = URLEncoder.encode(name, "UTF-8");
             String path = URL_PREFIX + "socialGroupsByName/" + name;
 
             return ClearspaceManager.getInstance().executeRequest(GET, path);

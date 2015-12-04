@@ -20,6 +20,7 @@
 package org.jivesoftware.openfire.session;
 
 import java.io.IOException;
+import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -33,11 +34,13 @@ import org.dom4j.io.XMPPPacketReader;
 import org.jivesoftware.openfire.Connection;
 import org.jivesoftware.openfire.SessionManager;
 import org.jivesoftware.openfire.StreamID;
+import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
+import org.jivesoftware.openfire.keystore.CertificateStoreManager;
 import org.jivesoftware.openfire.net.SASLAuthentication;
-import org.jivesoftware.openfire.net.SSLConfig;
 import org.jivesoftware.openfire.net.SocketConnection;
 import org.jivesoftware.openfire.server.ServerDialback;
+import org.jivesoftware.openfire.spi.ConnectionType;
 import org.jivesoftware.util.CertificateManager;
 import org.jivesoftware.util.JiveGlobals;
 import org.slf4j.Logger;
@@ -77,7 +80,7 @@ public class LocalIncomingServerSession extends LocalServerSession implements In
      * validated with this server. The remote server is allowed to send packets to this
      * server from any of the validated domains.
      */
-    private Set<String> validatedDomains = new HashSet<String>();
+    private Set<String> validatedDomains = new HashSet<>();
 
     /**
      * Domains or subdomain of this server that was used by the remote server
@@ -137,7 +140,7 @@ public class LocalIncomingServerSession extends LocalServerSession implements In
             if (serverVersion[0] >= 1) {
                 openingStream.append(" version=\"1.0\">");
             } else {
-                openingStream.append(">");
+                openingStream.append('>');
             }
             
             connection.deliverRawText(openingStream.toString());
@@ -151,7 +154,7 @@ public class LocalIncomingServerSession extends LocalServerSession implements In
 	                            Connection.TLSPolicy.required;
 	            boolean hasCertificates = false;
 	            try {
-	                hasCertificates = SSLConfig.getKeyStore().size() > 0;
+	                hasCertificates = XMPPServer.getInstance().getCertificateStoreManager().getIdentityStore( ConnectionType.SOCKET_S2S ).getStore().size() > 0;
 	            }
 	            catch (Exception e) {
 	                Log.error(e.getMessage(), e);
@@ -165,11 +168,7 @@ public class LocalIncomingServerSession extends LocalServerSession implements In
             }
 
             // Indicate the compression policy to use for this connection
-            String policyName = JiveGlobals.getProperty(ConnectionSettings.Server.COMPRESSION_SETTINGS,
-                    Connection.CompressionPolicy.disabled.toString());
-            Connection.CompressionPolicy compressionPolicy =
-                    Connection.CompressionPolicy.valueOf(policyName);
-            connection.setCompressionPolicy(compressionPolicy);
+            connection.setCompressionPolicy( connection.getConfiguration().getCompressionPolicy() );
 
             StringBuilder sb = new StringBuilder();
             
@@ -327,6 +326,7 @@ public class LocalIncomingServerSession extends LocalServerSession implements In
      * @return the domain or subdomain of the local server used by the remote server
      *         when validating the session.
      */
+    @Override
     public String getLocalDomain() {
         return localDomain;
     }
@@ -371,11 +371,9 @@ public class LocalIncomingServerSession extends LocalServerSession implements In
         	usingSelfSigned = true;
         } else {
         	try {
-				usingSelfSigned = CertificateManager.isSelfSignedCertificate(SSLConfig.getKeyStore(), (X509Certificate) chain[0]);
+                final KeyStore keyStore = XMPPServer.getInstance().getCertificateStoreManager().getIdentityStore( ConnectionType.SOCKET_S2S ).getStore();
+				usingSelfSigned = CertificateManager.isSelfSignedCertificate(keyStore, (X509Certificate) chain[0]);
 			} catch (KeyStoreException ex) {
-				Log.warn("Exception occurred while trying to determine whether local certificate is self-signed. Proceeding as if it is.", ex);
-				usingSelfSigned = true;
-			} catch (IOException ex) {
 				Log.warn("Exception occurred while trying to determine whether local certificate is self-signed. Proceeding as if it is.", ex);
 				usingSelfSigned = true;
 			}

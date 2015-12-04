@@ -27,6 +27,8 @@ import org.jivesoftware.openfire.net.SASLAuthentication;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.xmpp.packet.JID;
 
+import java.net.URLEncoder;
+
 /**
  * The ClearspaceAuthProvider uses the PermissionService web service inside of Clearspace
  * to retrieve authenticate users. It current version of Clearspace only supports plain authentication.
@@ -48,6 +50,7 @@ public class ClearspaceAuthProvider implements AuthProvider {
      *
      * @return true
      */
+    @Override
     public boolean isPlainSupported() {
         return true;
     }
@@ -57,6 +60,7 @@ public class ClearspaceAuthProvider implements AuthProvider {
      *
      * @return false
      */
+    @Override
     public boolean isDigestSupported() {
         return false;
     }
@@ -69,13 +73,14 @@ public class ClearspaceAuthProvider implements AuthProvider {
      * @param password the password.
      * @throws UnauthorizedException if the username of password are incorrect.
      */
+    @Override
     public void authenticate(String username, String password) throws UnauthorizedException,
             ConnectionException, InternalUnauthenticatedException {
         try {
             // Un-escape username.
             username = JID.unescapeNode(username);
             // Encode potentially non-ASCII characters
-            username = URLUTF8Encoder.encode(username);
+            username = URLEncoder.encode(username, "UTF-8");
             String path = URL_PREFIX + "authenticate/" + username + "/" + password;
             ClearspaceManager.getInstance().executeRequest(GET, path);
         } catch (UnauthorizedException ue) {
@@ -101,6 +106,7 @@ public class ClearspaceAuthProvider implements AuthProvider {
      * @throws UnauthorizedException         never throws it
      * @throws UnsupportedOperationException always throws it
      */
+    @Override
     public void authenticate(String username, String token, String digest) throws UnauthorizedException {
         throw new UnsupportedOperationException("Digest not supported");
     }
@@ -110,6 +116,7 @@ public class ClearspaceAuthProvider implements AuthProvider {
      *
      * @throws UnsupportedOperationException always throws it
      */
+    @Override
     public String getPassword(String username) throws UserNotFoundException, UnsupportedOperationException {
         throw new UnsupportedOperationException("Password retrieval not supported");
     }
@@ -119,6 +126,7 @@ public class ClearspaceAuthProvider implements AuthProvider {
      *
      * @throws UnsupportedOperationException always throws it
      */
+    @Override
     public void setPassword(String username, String password) throws UserNotFoundException, UnsupportedOperationException {
         throw new UnsupportedOperationException("Change Password not supported");
     }
@@ -128,6 +136,7 @@ public class ClearspaceAuthProvider implements AuthProvider {
      *
      * @throws UnsupportedOperationException always throws it
      */
+    @Override
     public boolean supportsPasswordRetrieval() {
         return false;
     }

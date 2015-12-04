@@ -23,6 +23,7 @@ import static org.jivesoftware.openfire.clearspace.ClearspaceManager.HttpType.GE
 import static org.jivesoftware.openfire.clearspace.ClearspaceManager.HttpType.POST;
 import static org.jivesoftware.openfire.clearspace.ClearspaceManager.HttpType.PUT;
 
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -75,6 +76,7 @@ public class ClearspaceUserProvider implements UserProvider {
      * @return a user instance with the user information
      * @throws UserNotFoundException if the user could not be found
      */
+    @Override
     public User loadUser(String username) throws UserNotFoundException {
 
         // Translate the response
@@ -94,6 +96,7 @@ public class ClearspaceUserProvider implements UserProvider {
      * @throws UserAlreadyExistsException    If there is already a user with the username
      * @throws UnsupportedOperationException If Clearspace is a read only provider
      */
+    @Override
     public User createUser(String username, String password, String name, String email) throws UserAlreadyExistsException {
         if (isReadOnly()) {
             // Reject the operation since the provider is read-only
@@ -114,7 +117,7 @@ public class ClearspaceUserProvider implements UserProvider {
             // Un-escape username.
             username = JID.unescapeNode(username);
             // Encode potentially non-ASCII characters
-            username = URLUTF8Encoder.encode(username);
+            username = URLEncoder.encode(username, "UTF-8");
             usernameE.addText(username);
 
             // adds the name if it is not empty
@@ -152,6 +155,7 @@ public class ClearspaceUserProvider implements UserProvider {
      *
      * @param username the username of the user to delete
      */
+    @Override
     public void deleteUser(String username) {
         if (isReadOnly()) {
             // Reject the operation since the provider is read-only
@@ -175,6 +179,7 @@ public class ClearspaceUserProvider implements UserProvider {
      *
      * @return the user count
      */
+    @Override
     public int getUserCount() {
         try {
             String path = USER_URL_PREFIX + "users/count";
@@ -191,6 +196,7 @@ public class ClearspaceUserProvider implements UserProvider {
      *
      * @return a list of all users
      */
+    @Override
     public Collection<User> getUsers() {
         Collection<String> usernames = getUsernames();
         return new UserCollection(usernames.toArray(new String[usernames.size()]));
@@ -201,6 +207,7 @@ public class ClearspaceUserProvider implements UserProvider {
      *
      * @return a list of all the usernames
      */
+    @Override
     public Collection<String> getUsernames() {
         try {
             String path = USER_URL_PREFIX + "userNames";
@@ -210,7 +217,7 @@ public class ClearspaceUserProvider implements UserProvider {
         } catch (Exception e) {
             Log.error(e.getMessage(), e);
         }
-        return new ArrayList<String>();
+        return new ArrayList<>();
     }
 
     /**
@@ -220,9 +227,10 @@ public class ClearspaceUserProvider implements UserProvider {
      * @param numResults the number of result
      * @return a bounded list of users
      */
+    @Override
     public Collection<User> getUsers(int startIndex, int numResults) {
         String[] usernamesAll = getUsernames().toArray(new String[0]);
-        Collection<String> usernames = new ArrayList<String>();
+        Collection<String> usernames = new ArrayList<>();
 
         // Filters the user
         for (int i = startIndex; (i < startIndex + numResults) && (i < usernamesAll.length); i++) {
@@ -239,6 +247,7 @@ public class ClearspaceUserProvider implements UserProvider {
      * @param name     the new name of the user
      * @throws UserNotFoundException if there is no user with that username
      */
+    @Override
     public void setName(String username, String name) throws UserNotFoundException {
         if (isReadOnly()) {
             // Reject the operation since the provider is read-only
@@ -269,6 +278,7 @@ public class ClearspaceUserProvider implements UserProvider {
      * @param email    the new email of the user
      * @throws UserNotFoundException if the user could not be found
      */
+    @Override
     public void setEmail(String username, String email) throws UserNotFoundException {
         if (isReadOnly()) {
             // Reject the operation since the provider is read-only
@@ -300,6 +310,7 @@ public class ClearspaceUserProvider implements UserProvider {
      * @param creationDate the new email of the user
      * @throws UserNotFoundException if the user could not be found
      */
+    @Override
     public void setCreationDate(String username, Date creationDate) throws UserNotFoundException {
         if (isReadOnly()) {
             // Reject the operation since the provider is read-only
@@ -331,6 +342,7 @@ public class ClearspaceUserProvider implements UserProvider {
      * @param modificationDate the new modificationDate of the user
      * @throws UserNotFoundException if the user could not be found
      */
+    @Override
     public void setModificationDate(String username, Date modificationDate) throws UserNotFoundException {
         if (isReadOnly()) {
             // Reject the operation since the provider is read-only
@@ -403,8 +415,9 @@ public class ClearspaceUserProvider implements UserProvider {
      * @return a list of username, name and email
      * @throws UnsupportedOperationException
      */
+    @Override
     public Set<String> getSearchFields() throws UnsupportedOperationException {
-        return new LinkedHashSet<String>(Arrays.asList("Username", "Name", "Email"));
+        return new LinkedHashSet<>(Arrays.asList("Username", "Name", "Email"));
     }
 
     /**
@@ -416,6 +429,7 @@ public class ClearspaceUserProvider implements UserProvider {
      * @throws UnsupportedOperationException if the provider does not
      *                                       support the operation (this is an optional operation).
      */
+    @Override
     public Collection<User> findUsers(Set<String> fields, String query) throws UnsupportedOperationException {
         // Creates the XML with the data
         Element paramsE = DocumentHelper.createDocument().addElement("search");
@@ -429,7 +443,7 @@ public class ClearspaceUserProvider implements UserProvider {
         queryE.addElement("searchEmail").addText("true");
         queryE.addElement("searchProfile").addText("false");
 
-        List<String> usernames = new ArrayList<String>();
+        List<String> usernames = new ArrayList<>();
         try {
 
             //TODO create a service on CS to get only the username field
@@ -442,7 +456,7 @@ public class ClearspaceUserProvider implements UserProvider {
                 // Escape the username so that it can be used as a JID.
                 username = JID.escapeNode(username);
                 // Encode potentially non-ASCII characters
-                username = URLUTF8Encoder.encode(username);
+                username = URLEncoder.encode(username, "UTF-8");
                 usernames.add(username);
             }
         } catch (Exception e) {
@@ -462,6 +476,7 @@ public class ClearspaceUserProvider implements UserProvider {
      * @throws UnsupportedOperationException if the provider does not
      *                                       support the operation (this is an optional operation).
      */
+    @Override
     public Collection<User> findUsers(Set<String> fields, String query, int startIndex, int numResults) throws UnsupportedOperationException {
         // Creates the XML with the data
         Element paramsE = DocumentHelper.createDocument().addElement("searchBounded");
@@ -478,7 +493,7 @@ public class ClearspaceUserProvider implements UserProvider {
         paramsE.addElement("startIndex").addText(String.valueOf(startIndex));
         paramsE.addElement("numResults").addText(String.valueOf(numResults));
 
-        List<String> usernames = new ArrayList<String>();
+        List<String> usernames = new ArrayList<>();
         try {
 
             //TODO create a service on CS to get only the username field
@@ -491,7 +506,7 @@ public class ClearspaceUserProvider implements UserProvider {
                 // Escape the username so that it can be used as a JID.
                 username = JID.escapeNode(username);
                 // Encode potentially non-ASCII characters
-                username = URLUTF8Encoder.encode(username);
+                username = URLEncoder.encode(username, "UTF-8");
                 usernames.add(username);
             }
 
@@ -506,6 +521,7 @@ public class ClearspaceUserProvider implements UserProvider {
      *
      * @return true if Clearspace is a read only user provider
      */
+    @Override
     public boolean isReadOnly() {
         if (readOnly == null) {
             synchronized (this) {
@@ -523,6 +539,7 @@ public class ClearspaceUserProvider implements UserProvider {
      *
      * @return false
      */
+    @Override
     public boolean isNameRequired() {
         return false;
     }
@@ -532,6 +549,7 @@ public class ClearspaceUserProvider implements UserProvider {
      *
      * @return true
      */
+    @Override
     public boolean isEmailRequired() {
         return true;
     }
@@ -629,7 +647,7 @@ public class ClearspaceUserProvider implements UserProvider {
             // Un-escape username.
             username = JID.unescapeNode(username);
             // Encode potentially non-ASCII characters
-            username = URLUTF8Encoder.encode(username);
+            username = URLEncoder.encode(username, "UTF-8");
             // Requests the user
             String path = USER_URL_PREFIX + "users/" + username;
             // return the response

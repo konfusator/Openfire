@@ -21,6 +21,7 @@ package org.jivesoftware.openfire.http;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.dom4j.DocumentException;
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
+import org.dom4j.QName;
 import org.jivesoftware.openfire.SessionManager;
 import org.jivesoftware.openfire.StreamID;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
@@ -41,6 +43,8 @@ import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.TaskEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.xml.XMLConstants;
 
 /**
  * Manages sessions for all users connecting to Openfire using the HTTP binding protocol,
@@ -51,17 +55,20 @@ public class HttpSessionManager {
 	private static final Logger Log = LoggerFactory.getLogger(HttpSessionManager.class);
 
     private SessionManager sessionManager;
-    private Map<String, HttpSession> sessionMap = new ConcurrentHashMap<String, HttpSession>(
+    private Map<String, HttpSession> sessionMap = new ConcurrentHashMap<>(
     		JiveGlobals.getIntProperty("xmpp.httpbind.session.initial.count", 16));
     private TimerTask inactivityTask;
     private ThreadPoolExecutor sendPacketPool;
     private SessionListener sessionListener = new SessionListener() {
+        @Override
         public void connectionOpened(HttpSession session, HttpConnection connection) {
         }
 
+        @Override
         public void connectionClosed(HttpSession session, HttpConnection connection) {
         }
 
+        @Override
         public void sessionClosed(HttpSession session) {
             sessionMap.remove(session.getStreamID().getID());
         }
@@ -98,6 +105,7 @@ public class HttpSessionManager {
 			new LinkedBlockingQueue<Runnable>(), // unbounded task queue
 	        new ThreadFactory() { // custom thread factory for BOSH workers
 	            final AtomicInteger counter = new AtomicInteger(1);
+	            @Override
 	            public Thread newThread(Runnable runnable) {
 	                Thread thread = new Thread(Thread.currentThread().getThreadGroup(), runnable,
 	                                    "httpbind-worker-" + counter.getAndIncrement());
@@ -164,7 +172,7 @@ public class HttpSessionManager {
         // TODO Check if IP address is allowed to connect to the server
 
         // Default language is English ("en").
-        String language = rootNode.attributeValue("xml:lang");
+        String language = rootNode.attributeValue(QName.get("lang", XMLConstants.XML_NS_URI));
         if (language == null || "".equals(language)) {
             language = "en";
         }
@@ -177,7 +185,7 @@ public class HttpSessionManager {
         	version = "1.5";
         }
 
-        HttpSession session = createSession(connection.getRequestId(), address, connection);
+        HttpSession session = createSession(connection.getRequestId(), address, connection, Locale.forLanguageTag(language));
         session.setWait(Math.min(wait, getMaxWait()));
         session.setHold(hold);
         session.setSecure(connection.isSecure());
@@ -193,9 +201,6 @@ public class HttpSessionManager {
         }
     	session.resetInactivityTimeout();
         
-        // Store language and version information in the connection.
-        session.setLanguage(language);
-        
         String [] versionString = version.split("\\.");
         session.setMajorVersion(Integer.parseInt(versionString[0]));
         session.setMinorVersion(Integer.parseInt(versionString[1]));
@@ -204,14 +209,7 @@ public class HttpSessionManager {
         try {
             connection.deliverBody(createSessionCreationResponse(session), true);
         }
-        catch (HttpConnectionClosedException e) {
-            Log.error("Error creating session.", e);
-            throw new HttpBindException("Internal server error", BoshBindingError.internalServerError);
-        }
-        catch (DocumentException e) {
-            Log.error("Error creating session.", e);
-            throw new HttpBindException("Internal server error", BoshBindingError.internalServerError);
-        } catch (IOException e) {
+        catch (HttpConnectionClosedException | DocumentException | IOException e) {
             Log.error("Error creating session.", e);
             throw new HttpBindException("Internal server error", BoshBindingError.internalServerError);
         }
@@ -299,11 +297,11 @@ public class HttpSessionManager {
         return JiveGlobals.getIntProperty("xmpp.httpbind.client.idle.polling", 60);
     }
 
-    private HttpSession createSession(long rid, InetAddress address, HttpConnection connection) throws UnauthorizedException {
+    private HttpSession createSession(long rid, InetAddress address, HttpConnection connection, Locale language) throws UnauthorizedException {
         // Create a ClientSession for this user.
         StreamID streamID = SessionManager.getInstance().nextStreamID();
         // Send to the server that a new client session has been created
-        HttpSession session = sessionManager.createClientHttpSession(rid, address, streamID, connection);
+        HttpSession session = sessionManager.createClientHttpSession(rid, address, streamID, connection, language);
         // Register that the new session is associated with the specified stream ID
         sessionMap.put(streamID.getID(), session);
         session.addSessionCloseListener(sessionListener);

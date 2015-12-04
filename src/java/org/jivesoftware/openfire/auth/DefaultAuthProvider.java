@@ -20,7 +20,6 @@
 
 package org.jivesoftware.openfire.auth;
 
-import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -69,6 +68,7 @@ public class DefaultAuthProvider implements AuthProvider {
 
     }
 
+    @Override
     public void authenticate(String username, String password) throws UnauthorizedException {
         if (username == null || password == null) {
             throw new UnauthorizedException();
@@ -96,6 +96,7 @@ public class DefaultAuthProvider implements AuthProvider {
         // Got this far, so the user must be authorized.
     }
 
+    @Override
     public void authenticate(String username, String token, String digest) throws UnauthorizedException {
         if (username == null || token == null || digest == null) {
             throw new UnauthorizedException();
@@ -125,15 +126,18 @@ public class DefaultAuthProvider implements AuthProvider {
         // Got this far, so the user must be authorized.
     }
 
+    @Override
     public boolean isPlainSupported() {
         return true;
     }
 
+    @Override
     public boolean isDigestSupported() {
         boolean scramOnly = JiveGlobals.getBooleanProperty("user.scramHashedPasswordOnly");
         return !scramOnly;
     }
 
+    @Override
     public String getPassword(String username) throws UserNotFoundException {
         if (!supportsPasswordRetrieval()) {
             // Reject the operation since the provider is read-only
@@ -239,7 +243,7 @@ public class DefaultAuthProvider implements AuthProvider {
                    saltedPassword = ScramUtils.createSaltedPassword(saltShaker, testPassword, iterations);
                    clientKey = ScramUtils.computeHmac(saltedPassword, "Client Key");
                    testStoredKey = MessageDigest.getInstance("SHA-1").digest(clientKey);
-            } catch(SaslException | NoSuchAlgorithmException | UnsupportedEncodingException e) {
+            } catch(SaslException | NoSuchAlgorithmException e) {
                 Log.warn("Unable to check SCRAM values for PLAIN authentication.");
                 return false;
             }
@@ -254,6 +258,7 @@ public class DefaultAuthProvider implements AuthProvider {
         }
     }
 
+    @Override
     public void setPassword(String username, String password) throws UserNotFoundException {
         // Determine if the password should be stored as plain text or encrypted.
         boolean usePlainPassword = JiveGlobals.getBooleanProperty("user.usePlainPassword");
@@ -272,7 +277,7 @@ public class DefaultAuthProvider implements AuthProvider {
         }
         
         // Store the salt and salted password so SCRAM-SHA-1 SASL auth can be used later.
-        byte[] saltShaker = new byte[32];
+        byte[] saltShaker = new byte[24];
         random.nextBytes(saltShaker);
         String salt = DatatypeConverter.printBase64Binary(saltShaker);
 
@@ -285,7 +290,7 @@ public class DefaultAuthProvider implements AuthProvider {
                clientKey = ScramUtils.computeHmac(saltedPassword, "Client Key");
                storedKey = MessageDigest.getInstance("SHA-1").digest(clientKey);
                serverKey = ScramUtils.computeHmac(saltedPassword, "Server Key");
-       } catch (SaslException | NoSuchAlgorithmException | UnsupportedEncodingException e) {
+       } catch (SaslException | NoSuchAlgorithmException e) {
            Log.warn("Unable to persist values for SCRAM authentication.");
        }
    
@@ -347,6 +352,7 @@ public class DefaultAuthProvider implements AuthProvider {
         }
     }
 
+    @Override
     public boolean supportsPasswordRetrieval() {
         boolean scramOnly = JiveGlobals.getBooleanProperty("user.scramHashedPasswordOnly");
         return !scramOnly;

@@ -190,18 +190,14 @@ public class User implements Cacheable, Externalizable, Result {
             AuthFactory.setPassword(username, password);
 
             // Fire event.
-            Map<String,Object> params = new HashMap<String,Object>();
+            Map<String,Object> params = new HashMap<>();
             params.put("type", "passwordModified");
             UserEventDispatcher.dispatchEvent(this, UserEventDispatcher.EventType.user_modified,
                     params);
         }
-        catch (UserNotFoundException e) {
+        catch (UserNotFoundException | ConnectionException | InternalUnauthenticatedException e) {
             Log.error(e.getMessage(), e);
-        } catch (ConnectionException e) {
-            Log.error(e.getMessage(), e);
-		} catch (InternalUnauthenticatedException e) {
-            Log.error(e.getMessage(), e);
-		}
+        }
     }
     
     public String getStoredKey() {
@@ -259,7 +255,7 @@ public class User implements Cacheable, Externalizable, Result {
             this.name = name;
 
             // Fire event.
-            Map<String,Object> params = new HashMap<String,Object>();
+            Map<String,Object> params = new HashMap<>();
             params.put("type", "nameModified");
             params.put("originalValue", originalName);
             UserEventDispatcher.dispatchEvent(this, UserEventDispatcher.EventType.user_modified,
@@ -315,7 +311,7 @@ public class User implements Cacheable, Externalizable, Result {
             UserManager.getUserProvider().setEmail(username, email);
             this.email = email;
             // Fire event.
-            Map<String,Object> params = new HashMap<String,Object>();
+            Map<String,Object> params = new HashMap<>();
             params.put("type", "emailModified");
             params.put("originalValue", originalEmail);
             UserEventDispatcher.dispatchEvent(this, UserEventDispatcher.EventType.user_modified,
@@ -359,7 +355,7 @@ public class User implements Cacheable, Externalizable, Result {
             this.creationDate = creationDate;
 
             // Fire event.
-            Map<String,Object> params = new HashMap<String,Object>();
+            Map<String,Object> params = new HashMap<>();
             params.put("type", "creationDateModified");
             params.put("originalValue", originalCreationDate);
             UserEventDispatcher.dispatchEvent(this, UserEventDispatcher.EventType.user_modified,
@@ -385,7 +381,7 @@ public class User implements Cacheable, Externalizable, Result {
             this.modificationDate = modificationDate;
 
             // Fire event.
-            Map<String,Object> params = new HashMap<String,Object>();
+            Map<String,Object> params = new HashMap<>();
             params.put("type", "nameModified");
             params.put("originalValue", originalModificationDate);
             UserEventDispatcher.dispatchEvent(this, UserEventDispatcher.EventType.user_modified,
@@ -406,7 +402,7 @@ public class User implements Cacheable, Externalizable, Result {
     public Map<String,String> getProperties() {
         synchronized (this) {
             if (properties == null) {
-                properties = new ConcurrentHashMap<String, String>();
+                properties = new ConcurrentHashMap<>();
                 loadProperties();
             }
         }
@@ -430,6 +426,7 @@ public class User implements Cacheable, Externalizable, Result {
         }
     }
 
+    @Override
     public int getCachedSize()
             throws CannotCalculateSizeException {
         // Approximate the size of the object in bytes by calculating the size
@@ -471,26 +468,27 @@ public class User implements Cacheable, Externalizable, Result {
     /**
      * Map implementation that updates the database when properties are modified.
      */
-    private class PropertiesMap extends AbstractMap {
+    private class PropertiesMap extends AbstractMap<String, String> {
 
         @Override
-		public Object put(Object key, Object value) {
-            Map<String,Object> eventParams = new HashMap<String,Object>();
-            Object answer;
-            String keyString = (String) key;
+		public String put(String key, String value) {
+            Map<String,Object> eventParams = new HashMap<>();
+            String answer;
+            String keyString = key;
+
             synchronized (getName() + keyString.intern()) {
                 if (properties.containsKey(keyString)) {
                     String originalValue = properties.get(keyString);
-                    answer = properties.put(keyString, (String)value);
-                    updateProperty(keyString, (String)value);
+                    answer = properties.put(keyString, value);
+                    updateProperty(keyString, value);
                     // Configure event.
                     eventParams.put("type", "propertyModified");
                     eventParams.put("propertyKey", key);
                     eventParams.put("originalValue", originalValue);
                 }
                 else {
-                    answer = properties.put(keyString, (String)value);
-                    insertProperty(keyString, (String)value);
+                    answer = properties.put(keyString, value);
+                    insertProperty(keyString, value);
                     // Configure event.
                     eventParams.put("type", "propertyAdded");
                     eventParams.put("propertyKey", key);
@@ -503,7 +501,7 @@ public class User implements Cacheable, Externalizable, Result {
         }
 
         @Override
-		public Set<Entry> entrySet() {
+		public Set<Entry<String, String>> entrySet() {
             return new PropertiesEntrySet();
         }
     }
@@ -511,38 +509,41 @@ public class User implements Cacheable, Externalizable, Result {
     /**
      * Set implementation that updates the database when properties are deleted.
      */
-    private class PropertiesEntrySet extends AbstractSet {
+    private class PropertiesEntrySet extends AbstractSet<Map.Entry<String, String>> {
 
         @Override
-		public int size() {
+        public int size() {
             return properties.entrySet().size();
         }
 
         @Override
-		public Iterator iterator() {
-            return new Iterator() {
+		public Iterator<Map.Entry<String, String>> iterator() {
+            return new Iterator<Map.Entry<String, String>>() {
 
-                Iterator iter = properties.entrySet().iterator();
-                Map.Entry current = null;
+                Iterator<Map.Entry<String, String>> iter = properties.entrySet().iterator();
+                Map.Entry<String,String> current = null;
 
+                @Override
                 public boolean hasNext() {
                     return iter.hasNext();
                 }
 
-                public Object next() {
-                    current = (Map.Entry)iter.next();
+                @Override
+                public Map.Entry<String, String> next() {
+                    current = iter.next();
                     return current;
                 }
 
+                @Override
                 public void remove() {
                     if (current == null) {
                         throw new IllegalStateException();
                     }
-                    String key = (String)current.getKey();
+                    String key = current.getKey();
                     deleteProperty(key);
                     iter.remove();
                     // Fire event.
-                    Map<String,Object> params = new HashMap<String,Object>();
+                    Map<String,Object> params = new HashMap<>();
                     params.put("type", "propertyDeleted");
                     params.put("propertyKey", key);
                     UserEventDispatcher.dispatchEvent(User.this,
@@ -629,6 +630,7 @@ public class User implements Cacheable, Externalizable, Result {
         }
     }
 
+    @Override
     public void writeExternal(ObjectOutput out) throws IOException {
         ExternalizableUtil.getInstance().writeSafeUTF(out, username);
         ExternalizableUtil.getInstance().writeSafeUTF(out, getName());
@@ -640,6 +642,7 @@ public class User implements Cacheable, Externalizable, Result {
         ExternalizableUtil.getInstance().writeLong(out, modificationDate.getTime());
     }
 
+    @Override
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         username = ExternalizableUtil.getInstance().readSafeUTF(in);
         name = ExternalizableUtil.getInstance().readSafeUTF(in);
@@ -654,6 +657,7 @@ public class User implements Cacheable, Externalizable, Result {
      * (non-Javadoc)
      * @see org.jivesoftware.util.resultsetmanager.Result#getUID()
      */
+	@Override
 	public String getUID()
 	{
 		return username;

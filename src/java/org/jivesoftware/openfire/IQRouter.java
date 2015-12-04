@@ -64,10 +64,10 @@ public class IQRouter extends BasicModule {
 	private RoutingTable routingTable;
     private MulticastRouter multicastRouter;
     private String serverName;
-    private List<IQHandler> iqHandlers = new ArrayList<IQHandler>();
-    private Map<String, IQHandler> namespace2Handlers = new ConcurrentHashMap<String, IQHandler>();
-    private Map<String, IQResultListener> resultListeners = new ConcurrentHashMap<String, IQResultListener>();
-    private Map<String, Long> resultTimeout = new ConcurrentHashMap<String, Long>();
+    private List<IQHandler> iqHandlers = new ArrayList<>();
+    private Map<String, IQHandler> namespace2Handlers = new ConcurrentHashMap<>();
+    private Map<String, IQResultListener> resultListeners = new ConcurrentHashMap<>();
+    private Map<String, Long> resultTimeout = new ConcurrentHashMap<>();
     private SessionManager sessionManager;
     private UserManager userManager;
 
@@ -431,6 +431,12 @@ public class IQRouter extends BasicModule {
     private void sendErrorPacket(IQ originalPacket, PacketError.Condition condition) {
         if (IQ.Type.error == originalPacket.getType()) {
             Log.error("Cannot reply an IQ error to another IQ error: " + originalPacket.toXML());
+            return;
+        }
+        if (originalPacket.getFrom() == null) {
+        	if (Log.isDebugEnabled()) {
+        		Log.debug("Original IQ has no sender for reply; dropped: " + originalPacket.toXML());
+        	}
             return;
         }
         IQ reply = IQ.createResultIQ(originalPacket);

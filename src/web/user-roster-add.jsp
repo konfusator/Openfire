@@ -29,8 +29,8 @@
 <%@ page import="org.jivesoftware.openfire.user.UserAlreadyExistsException" %>
 <%@ page import="org.jivesoftware.openfire.SharedGroupException" %>
 
-<%@ taglib uri="http://java.sun.com/jstl/core_rt" prefix="c" %>
-<%@ taglib uri="http://java.sun.com/jstl/fmt_rt" prefix="fmt" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
 
 <jsp:useBean id="webManager" class="org.jivesoftware.util.WebManager"  />
 <% webManager.init(request, response, session, application, out ); %>
@@ -173,8 +173,7 @@
 		</tr>
 		<tr>
 			<td width="1%" nowrap>
-				<label for="nicknametf"><fmt:message key="user.roster.nickname" />:</label>
-			</td>
+				<label for="nicknametf"><fmt:message key="user.roster.nickname" />:</label></td>
 			<td width="99%">
 				<input type="text" name="nickname" size="30" maxlength="255" value="<%= ((nickname!=null) ? StringUtils.escapeForXML(nickname) : "") %>"
 				 id="nicknametf">

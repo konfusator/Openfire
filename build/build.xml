@@ -23,8 +23,8 @@
     <!-- GLOBAL PROPERTIES                                                                       -->
     <!-- ======================================================================================= -->
 
-    <property name="version.major" value="3"/>
-    <property name="version.minor" value="11"/>
+    <property name="version.major" value="4"/>
+    <property name="version.minor" value="0"/>
     <property name="version.revision" value="0"/>
     <property name="version.extra" value="alpha"/>    <!-- For 'beta' or 'alpha' -->
 
@@ -83,6 +83,7 @@
 
     <property name="test.dest.dir" value="${work.dir}/test"/>
     <property name="test.classes.dest.dir" value="${test.dest.dir}/classes"/>
+    <property name="test.resources.dest.dir" value="${test.dest.dir}/resources"/>
     <property name="test.results.dest.dir" value="${test.dest.dir}/results"/>
 
     <property name="plugin.src.dir" value="${src.dir}/plugins"/>
@@ -141,9 +142,6 @@
     <taskdef name="propertymerge" classname="org.jugbb.ant.propertymerge.PropertyMergeTask">
         <classpath refid="ant.dependencies" />
     </taskdef>
-    <typedef name="srcinc" classname="com.jivesoftware.tools.selector.IncludeSourceSelector" >
-        <classpath refid="ant.dependencies" />
-    </typedef>
 
     <!-- ======================================================================================= -->
     <!-- PATHs / PATTERNSETs / FILTERSETs                                                        -->
@@ -179,7 +177,7 @@
     <path id="javadoc.dependencies">
         <fileset dir="${lib.build.dir}" includes="*.jar" excludes="junit.jar"/>
         <path refid="libs.to.merge" />
-        <fileset dir="${lib.dist.dir}" includes="servlet-api.jar, servlet-api-schemas.jar, mail.jar, jdic.jar"/>
+        <fileset dir="${lib.dist.dir}" includes="mail.jar, jdic.jar"/>
         <fileset dir="${lib.dist.dir}" includes="bcpg-jdk15on.jar, bcpkix-jdk15on.jar, bcprov-jdk15on.jar"/>
     </path>
 
@@ -450,9 +448,14 @@
             <fileset dir="${lib.dist.dir}" includes="*.*"/>
         </copy>
 
-        <!-- Copy in tag library support -->
+        <!-- Copy in JSP support -->
         <copy todir="${jar.dest.dir}">
-            <fileset dir="${lib.build.dir}" includes="commons-el.jar"/>
+            <fileset dir="${lib.build.dir}" includes="org.apache.taglibs.taglibs-standard-impl.jar"/>
+            <fileset dir="${lib.build.dir}" includes="org.apache.taglibs.taglibs-standard-spec.jar"/>
+            <fileset dir="${lib.build.dir}" includes="org.eclipse.jetty.apache-jsp.jar"/>
+            <fileset dir="${lib.build.dir}" includes="org.eclipse.jetty.orbit.org.eclipse.jdt.core.jar"/>
+            <fileset dir="${lib.build.dir}" includes="org.mortbay.jasper.apache-el.jar"/>
+            <fileset dir="${lib.build.dir}" includes="org.mortbay.jasper.apache-jsp.jar"/>
         </copy>
 
         <!-- Copy in jasper runtime jar -->
@@ -606,19 +609,26 @@
             </filterset>
         </copy>
 
-        <!-- Copy over Sitemesh files. -->
-        <copy file="${web.dir}/WEB-INF/decorators.xml"
-              toFile="${webapp.dest.dir}/WEB-INF/decorators.xml"
-              overwrite="true">
+        <!-- Copy over other WEB-INF files. -->
+        <copy todir="${webapp.dest.dir}/WEB-INF" overwrite="true">
+            <fileset dir="${web.dir}/WEB-INF">
+                <include name="**/*"/>
+                <exclude name="web.xml"/>
+            </fileset>
         </copy>
-        <copy file="${web.dir}/WEB-INF/sitemesh.xml"
-              toFile="${webapp.dest.dir}/WEB-INF/sitemesh.xml"
-              overwrite="true">
-        </copy>
-        <copy file="${web.dir}/WEB-INF/dwr.xml"
-              toFile="${webapp.dest.dir}/WEB-INF/dwr.xml"
-              overwrite="true">
-        </copy>
+
+        <!-- When there are WEB-INF overlay files, use those. -->
+        <if>
+            <equals arg1="${overlay.web.dir.found}" arg2="true"/>
+            <then>
+                <copy todir="${webapp.dest.dir}/WEB-INF" overwrite="true">
+                    <fileset dir="${overlay.web.dir}/WEB-INF">
+                        <include name="**/*"/>
+                        <exclude name="web.xml"/>
+                    </fileset>
+                </copy>
+            </then>
+        </if>
 
         <!-- Create a jar of compiled servlets -->
         <jar jarfile="${jspc.dest.dir}/${jspc.jar.name}">
@@ -655,6 +665,7 @@
                 <path refid="test.dependencies"/>
                 <pathelement path="${test.dest.dir}"/>
                 <pathelement path="${test.classes.dest.dir}"/>
+                <pathelement path="${test.resources.dest.dir}"/>
             </classpath>
 
             <formatter type="xml"/>
@@ -900,7 +911,6 @@
         <copy todir="${release.src.out.dir}/src">
             <fileset dir="${src.dir}">
                 <include name="**/*.java" />
-                <srcinc />
             </fileset>
             <filterset>
                 <filter token="DATE" value="${builddate}"/>
@@ -1184,6 +1194,8 @@
 
     <!-- plugins =============================================================================== -->
     <target name="plugins" description="Builds all plugins" depends="anttasks">
+        <antcall target="clean-plugins"/>
+
         <tstamp>
             <format property="buildJavaDate" pattern="MMM dd, yyyy"/>
         </tstamp>
@@ -1208,35 +1220,11 @@
     </target>
 
     <target name="-plugins-impl" if="dirlist">
-
-        <!-- First, do all plugins that do not have a parent plugin (some of them could be parents of others) -->
         <for list="${dirlist}" param="plugin" trim="true">
             <sequential>
-                <xmlproperty file="${plugin.src.dir}/@{plugin}/plugin.xml" keeproot="true"/>
-                <if>
-                    <isset property="plugin.parentPlugin"/>
-                    <then>
-                    </then>
-                    <else>
-                        <buildplugin plugin="@{plugin}" pluginsrc="${plugin.src.dir}"/>
-                    </else>
-                </if>
+                <buildplugin plugin="@{plugin}" pluginsrc="${plugin.src.dir}"/>
             </sequential>
         </for>
-
-        <!-- Lastly, do all plugins that have defined a parent plugin. This works, as long as there are no 'chains' -->
-        <for list="${dirlist}" param="plugin" trim="true">
-            <sequential>
-                <xmlproperty file="${plugin.src.dir}/@{plugin}/plugin.xml" keeproot="true"/>
-                <if>
-                    <isset property="plugin.parentPlugin"/>
-                    <then>
-                        <buildplugin plugin="@{plugin}" pluginsrc="${plugin.src.dir}"/>
-                    </then>
-                </if>
-            </sequential>
-        </for>
-
     </target>
 
     <target name="plugin" description="build one plugin">
@@ -1251,6 +1239,40 @@
         <antcall target="openfireHome"/>
     </target>
 
+    <macrodef name="buildparentplugin">
+        <attribute name="plugin"/>
+        <attribute name="pluginsrc"/>
+        <attribute name="pluginlib" default="${plugin.dev.dest.dir}/@{plugin}/work/lib" />
+        <attribute name="parentPlug"/>
+        <sequential>
+            <echo message="Read XML properties of @{pluginsrc}/@{parentPlug}/plugin.xml"/>
+            <xmlproperty file="@{pluginsrc}/@{parentPlug}/plugin.xml" prefix="@{parentPlug}" keepRoot="false"/>
+            <if>
+                <isset property="@{parentPlug}.parentPlugin"/>
+                <then>
+                    <echo message="Compile parent of parent plugin ${@{parentPlug}.parentPlugin}"/>
+                    <buildparentplugin parentPlug="${@{parentPlug}.parentPlugin}" plugin="@{plugin}" pluginsrc="@{pluginsrc}" pluginlib="@{pluginlib}"/>
+                </then>
+            </if>
+            <echo message="Compile parent plugin @{parentPlug}"/>
+            <javac
+                    destdir="${plugin.dev.dest.dir}/@{plugin}/target/classes"
+                    includeAntRuntime="no"
+                    debug="on"
+                    source="1.5"
+                    target="1.5"
+                    >
+                <src path="@{pluginsrc}/@{parentPlug}/src/java"/>
+                <classpath>
+                    <path refid="plugin.dependencies"/>
+                    <!-- Jars used by the plugin to compile with -->
+                    <fileset dir="@{pluginsrc}/@{parentPlug}" includes="lib/*.jar"/>
+                </classpath>
+            </javac>
+        </sequential>
+
+    </macrodef>
+
     <!-- buildplugin (MACRO) =================================================================== -->
     <macrodef name="buildplugin">
         <attribute name="plugin"/>
@@ -1264,31 +1286,23 @@
                 <mkdir dir="${plugin.dev.dest.dir}"/>
                 <mkdir dir="${plugin.dev.dest.dir}/@{plugin}"/>
                 <mkdir dir="${plugin.dev.dest.dir}/@{plugin}/target"/>
+                <mkdir dir="${plugin.dev.dest.dir}/@{plugin}/target/classes"/>
 
-                <!-- Determine if this plugin has a parent plugin and if so, add it to the classpath. Note that it is
-                     up to the caller to guarantee that a parent plugin has already been compiled!
-                -->
-                <xmlproperty file="${plugin.src.dir}/@{plugin}/plugin.xml" keeproot="true"/>
+                <xmlproperty file="${plugin.src.dir}/@{plugin}/plugin.xml" prefix="@{plugin}" keeproot="false"/>
                 <if>
-                    <isset property="plugin.parentPlugin"/>
+                    <isset property="@{plugin}.parentPlugin"/>
                     <then>
-                        <echo>Parent plugin found: ${plugin.parentPlugin}</echo>
-                        <path id="plugin.classpath.source">
-                            <path refid="plugin.dependencies"/>
-                            <fileset dir="@{pluginsrc}/@{plugin}" includes="lib/*.jar"/>
-                            <fileset dir="${plugin.dev.dest.dir}/${plugin.parentPlugin}/target/" includes="lib/*.jar"/>
-                        </path>
+                        <echo>Parent plugin found: ${@{plugin}.parentPlugin}</echo>
+                        <buildparentplugin parentPlug="${@{plugin}.parentPlugin}" plugin="@{plugin}" pluginsrc="@{pluginsrc}" pluginlib="@{pluginlib}"/>
                     </then>
-                    <else>
-                        <path id="plugin.classpath.source">
-                            <path refid="plugin.dependencies"/>
-                            <fileset dir="@{pluginsrc}/@{plugin}" includes="lib/*.jar"/>
-                        </path>
-                    </else>
                 </if>
 
+                <path id="plugin.classpath.source">
+                    <path refid="plugin.dependencies"/>
+                    <fileset dir="@{pluginsrc}/@{plugin}" includes="lib/*.jar"/>
+                </path>
+
                 <!-- Compile plugin source code -->
-                <mkdir dir="${plugin.dev.dest.dir}/@{plugin}/target/classes"/>
                 <of.javac destdir="${plugin.dev.dest.dir}/@{plugin}/target/classes" classpathref="plugin.classpath.source">
                     <src path="@{pluginsrc}/@{plugin}/src/java"/>
                 </of.javac>
@@ -1302,11 +1316,7 @@
 
                 <!-- copy the source we want to compile -->
                 <copy todir="@{pluginlib}/source">
-                    <fileset dir="@{pluginsrc}/@{plugin}/src/java" includes="**/*.java" >
-                        <not>
-                            <srcinc />
-                        </not>
-                    </fileset>
+                    <fileset dir="@{pluginsrc}/@{plugin}/src/java" includes="**/*.java" />
                     <filterset>
                         <filter token="DATE" value="${buildJavaDate}"/>
                     </filterset>
@@ -1339,7 +1349,6 @@
                     </fileset>
                 </jar>
 
-                <!-- Clean-up our source files for the "srcinc" files -->
                 <delete dir="@{pluginlib}/classes" />
                 <delete dir="@{pluginlib}/source" />
 
@@ -1420,26 +1429,20 @@
                             </fileset>
                         </copy>
 
-                        <!-- Declare the jspc task with our plugin's classpath -->
-                        <taskdef classname="org.apache.jasper.JspC" name="jasper2" loaderref="jasperB">
+                        <!-- JSP to Java -->
+                        <java classname="org.apache.jasper.JspC" fork="true">
                             <classpath>
                                 <pathelement location="${java.home}/../lib/tools.jar"/>
-                                <pathelement
-                                        location="${plugin.dev.dest.dir}/@{plugin}/target/lib/plugin-@{plugin}.jar"/>
-                                <path refid="jspc.dependencies"/>
                                 <fileset dir="${plugin.dev.dest.dir}/@{plugin}/target" includes="lib/*.jar"/>
+                                <pathelement location="${plugin.dev.dest.dir}/@{plugin}/target/lib/plugin-@{plugin}.jar"/>
                                 <pathelement path="${compile.dir}"/>
+                                <path refid="jspc.dependencies"/>
                             </classpath>
-                        </taskdef>
-
-                        <!-- JSP to Java -->
-                        <jasper2
-                                validateXml="false"
-                                uriroot="${plugin.dev.dest.dir}/@{plugin}/target/web"
-                                outputDir="${plugin.dev.dest.dir}/@{plugin}/target/jspc/java"
-                                package="org.jivesoftware.openfire.plugin.@{plugin}"
-                                webXml="${plugin.dev.dest.dir}/@{plugin}/target/jspc/web.xml"
-                                />
+                            <arg line="-uriroot '${plugin.dev.dest.dir}/@{plugin}/target/web'"/>
+                            <arg line="-d '${plugin.dev.dest.dir}/@{plugin}/target/jspc/java'"/>
+                            <arg line="-p org.jivesoftware.openfire.plugin.@{plugin}"/>
+                            <arg line="-webxml '${plugin.dev.dest.dir}/@{plugin}/target/jspc/web.xml'"/>
+                        </java>
 
                         <!-- Use xmltask to merge the generated web.xml file and a developer one (if any) -->
                         <available property="plugin.@{plugin}.webxml.available"

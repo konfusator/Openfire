@@ -1,7 +1,6 @@
 package org.jivesoftware.util.cert;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -42,7 +41,7 @@ public class SANCertificateIdentityMapping implements CertificateIdentityMapping
      */
 	@Override
 	public List<String> mapIdentity(X509Certificate certificate) {
-		List<String> identities = new ArrayList<String>();
+		List<String> identities = new ArrayList<>();
         try {
             Collection<List<?>> altNames = certificate.getSubjectAlternativeNames();
             // Check that the certificate includes the SubjectAltName extension
@@ -54,9 +53,8 @@ public class SANCertificateIdentityMapping implements CertificateIdentityMapping
                 Integer type = (Integer) item.get(0);
                 if (type == 0) {
                     // Type OtherName found so return the associated value
-                    try {
+                    try (ASN1InputStream decoder = new ASN1InputStream((byte[]) item.get(1))) {
                         // Value is encoded using ASN.1 so decode it to get the server's identity
-                        ASN1InputStream decoder = new ASN1InputStream((byte[]) item.get(1));
                         Object object = decoder.readObject();
                         ASN1Sequence otherNameSeq = null;
                         if (object != null && object instanceof ASN1Sequence) {
@@ -91,16 +89,11 @@ public class SANCertificateIdentityMapping implements CertificateIdentityMapping
 	                            // Add the decoded server name to the list of identities
 	                            identities.add(identity);
 	                        }
-	                        decoder.close();
                         } catch (IllegalArgumentException ex) {
                         	// OF-517: othername formats are extensible. If we don't recognize the format, skip it.
                         	Log.debug("Cannot parse altName, likely because of unknown record format.", ex);
                         }
-                    }
-                    catch (UnsupportedEncodingException e) {
-                        // Ignore
-                    }
-                    catch (IOException e) {
+                    } catch (IOException e) {
                         // Ignore
                     }
                     catch (Exception e) {

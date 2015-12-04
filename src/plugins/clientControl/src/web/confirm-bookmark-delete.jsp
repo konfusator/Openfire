@@ -6,8 +6,8 @@
 <%@ page import="org.jivesoftware.openfire.muc.MUCRoom" %>
 <%@ page import="org.jivesoftware.openfire.muc.MultiUserChatService" %>
 <%@ page import="java.util.Collection" %>
-<%@ taglib uri="http://java.sun.com/jstl/core_rt" prefix="c" %>
-<%@ taglib uri="http://java.sun.com/jstl/fmt_rt" prefix="fmt" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
 
 
 <%
@@ -127,6 +127,10 @@ else { %>
         <tr>
             <td><b><fmt:message key="bookmark.delete.chat.autojoin" /></b></td>
             <td><%= bookmark.getProperty("autojoin") != null ? "<img src='/images/check.gif'>" : "&nbsp;"%></td>
+        </tr>
+		<tr>
+            <td><b><fmt:message key="bookmark.delete.chat.nameasnick" /></b></td>
+            <td><%= bookmark.getProperty("nameasnick") != null ? "<img src='/images/check.gif'>" : "&nbsp;"%></td>
         </tr>
         <tr>
             <td></td>

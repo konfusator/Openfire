@@ -9,7 +9,11 @@
                  org.jivesoftware.openfire.cluster.NodeID,
                  org.jivesoftware.openfire.cluster.ClusterNodeInfo"
 %>
-<%@ page import="org.jivesoftware.util.*" %>
+<%@ page import="org.jivesoftware.util.Base64" %>
+<%@ page import="org.jivesoftware.util.JiveGlobals" %>
+<%@ page import="org.jivesoftware.util.Log" %>
+<%@ page import="org.jivesoftware.util.LocaleUtils" %>
+<%@ page import="org.jivesoftware.util.ParamUtils" %>
 <%@ page import="org.jivesoftware.util.cache.Cache" %>
 <%@ page import="java.text.DecimalFormat" %>
 <%@ page import="java.text.NumberFormat" %>
@@ -20,8 +24,8 @@
 <% webManager.init(request, response, session, application, out ); %>
 
 
-<%@ taglib uri="http://java.sun.com/jstl/core_rt" prefix="c" %>
-<%@ taglib uri="http://java.sun.com/jstl/fmt_rt" prefix="fmt" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
 
 <html>
 <head>

@@ -13,8 +13,8 @@
 <%@ page import="java.util.StringTokenizer" %>
 <%@ page import="org.jivesoftware.util.NotFoundException"%>
 <%@ page import="org.jivesoftware.util.LocaleUtils"%>
-<%@ taglib uri="http://java.sun.com/jstl/core_rt" prefix="c" %>
-<%@ taglib uri="http://java.sun.com/jstl/fmt_rt" prefix="fmt" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
 <%
     boolean urlType = false;
     boolean groupchatType = false;
@@ -45,6 +45,7 @@
     String groupchatJID = request.getParameter("groupchatJID");
 
     boolean autojoin = ParamUtils.getBooleanParameter(request,"autojoin");
+	boolean nameAsNick = ParamUtils.getBooleanParameter(request,"nameasnick");
 
     String users = request.getParameter("users");
     String groups = request.getParameter("groups");
@@ -94,6 +95,7 @@
             else {
                 groupchatName = editBookmark.getName();
                 autojoin = editBookmark.getProperty("autojoin") != null;
+                nameAsNick = editBookmark.getProperty("nameasnick") != null;
                 groupchatJID = editBookmark.getValue();
             }
 
@@ -175,17 +177,23 @@
                 if (isRSS) {
                     bookmark.setProperty("rss", "true");
                 }
-		else {
+				else {
 	            bookmark.deleteProperty("rss");
-		}
+				}
             }
             else {
                 if (autojoin) {
                     bookmark.setProperty("autojoin", "true");
                 }
-		else {
-	            bookmark.deleteProperty("autojoin");
-		}
+					else {
+	            	bookmark.deleteProperty("autojoin");
+				}
+				if (nameAsNick) {
+					bookmark.setProperty("nameasnick", "true");
+				}
+					else {
+	            	bookmark.deleteProperty("nameasnick");
+				}
             }
         }
     }
@@ -366,6 +374,10 @@ else { %>
         <tr>
             <td><b><fmt:message key="group.chat.bookmark.autojoin" />:</b></td><td><input type="checkbox" name="autojoin" <%= autojoin ? "checked" : "" %>/></td>
         </tr>
+        <tr>
+            <td><b><fmt:message key="group.chat.bookmark.nameasnick" />:</b></td><td><input type="checkbox" name="nameasnick" <%= nameAsNick ? "checked" : "" %>/></td>
+        </tr>
+
         <tr>
             <td></td>
             <td><input type="submit" name="createGroupchatBookmark"  value="<%= editBookmark != null ? LocaleUtils.getLocalizedString("bookmark.save.changes", "clientcontrol") : LocaleUtils.getLocalizedString("create", "clientcontrol")  %>"/>&nbsp;

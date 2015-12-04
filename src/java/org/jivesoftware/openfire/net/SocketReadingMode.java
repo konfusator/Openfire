@@ -81,12 +81,12 @@ abstract class SocketReadingMode {
         }
         // Client requested to secure the connection using TLS. Negotiate TLS.
         try {
-            // Temporary workaround to force the usage of ServerTrustManager. This code is only used for s2s
-            socketReader.connection.startTLS(false, "IMPLEMENT_ME", Connection.ClientAuth.disabled);
+            // This code is only used for s2s
+            socketReader.connection.startTLS(false);
         }
         catch (IOException e) {
             Log.error("Error while negotiating TLS: " + socketReader.connection, e);
-            socketReader.connection.deliverRawText("<failure xmlns=\"urn:ietf:params:xml:ns:xmpp-tls\">");
+            socketReader.connection.deliverRawText("<failure xmlns=\"urn:ietf:params:xml:ns:xmpp-tls\"/>");
             socketReader.connection.close();
             return false;
         }
@@ -259,9 +259,9 @@ abstract class SocketReadingMode {
             sb.append("<stream:stream ");
         }
         sb.append("xmlns:stream=\"http://etherx.jabber.org/streams\" xmlns=\"");
-        sb.append(socketReader.getNamespace()).append("\"");
+        sb.append(socketReader.getNamespace()).append('\"');
         if (socketReader.getExtraNamespaces() != null) {
-            sb.append(" ");
+            sb.append(' ');
             sb.append(socketReader.getExtraNamespaces());
         }
         sb.append(" from=\"");
@@ -269,9 +269,9 @@ abstract class SocketReadingMode {
         sb.append("\" id=\"");
         sb.append(socketReader.session.getStreamID().toString());
         sb.append("\" xml:lang=\"");
-        sb.append(socketReader.connection.getLanguage());
+        sb.append(socketReader.session.getLanguage());
         sb.append("\" version=\"");
-        sb.append(Session.MAJOR_VERSION).append(".").append(Session.MINOR_VERSION);
+        sb.append(Session.MAJOR_VERSION).append('.').append(Session.MINOR_VERSION);
         sb.append("\">");
         return sb.toString();
     }

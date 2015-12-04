@@ -30,6 +30,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -237,7 +238,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
      * @return all sessions originated from connection managers.
      */
     public List<ConnectionMultiplexerSession> getConnectionMultiplexerSessions() {
-        List<ConnectionMultiplexerSession> sessions = new ArrayList<ConnectionMultiplexerSession>();
+        List<ConnectionMultiplexerSession> sessions = new ArrayList<>();
         // Add sessions of CMs connected to this JVM
         sessions.addAll(localSessionManager.getConnnectionManagerSessions().values());
         // Add sessions of CMs connected to other cluster nodes
@@ -262,7 +263,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
      *         whose domain matches the specified domain.
      */
     public List<ConnectionMultiplexerSession> getConnectionMultiplexerSessions(String domain) {
-        List<ConnectionMultiplexerSession> sessions = new ArrayList<ConnectionMultiplexerSession>();
+        List<ConnectionMultiplexerSession> sessions = new ArrayList<>();
         // Add sessions of CMs connected to this JVM
         for (String address : localSessionManager.getConnnectionManagerSessions().keySet()) {
             JID jid = new JID(address);
@@ -331,10 +332,11 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
      * stream ID.
      *
      * @param conn the connection to create the session from.
+     * @param language The language to use for the new session.
      * @return a newly created session.
      */
-    public LocalClientSession createClientSession(Connection conn) {
-        return createClientSession(conn, nextStreamID());
+    public LocalClientSession createClientSession(Connection conn, Locale language) {
+        return createClientSession(conn, nextStreamID(), language);
     }
 
     /**
@@ -345,10 +347,22 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
      * @return a newly created session.
      */
     public LocalClientSession createClientSession(Connection conn, StreamID id) {
+        return createClientSession( conn, id, null);
+    }
+
+    /**
+     * Creates a new <tt>ClientSession</tt> with the specified streamID.
+     *
+     * @param conn the connection to create the session from.
+     * @param id the streamID to use for the new session.
+     * @param language The language to use for the new session.
+     * @return a newly created session.
+     */
+    public LocalClientSession createClientSession(Connection conn, StreamID id, Locale language) {
         if (serverName == null) {
             throw new IllegalStateException("Server not initialized");
         }
-        LocalClientSession session = new LocalClientSession(serverName, conn, id);
+        LocalClientSession session = new LocalClientSession(serverName, conn, id, language);
         conn.init(session);
         // Register to receive close notification on this session so we can
         // remove  and also send an unavailable presence if it wasn't
@@ -362,13 +376,20 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
         return session;
     }
 
-    public HttpSession createClientHttpSession(long rid, InetAddress address, StreamID id, HttpConnection connection)
+    /**
+     * Creates a new <tt>ClientSession</tt> with the specified streamID.
+     *
+     * @param conn the connection to create the session from.
+     * @param id the streamID to use for the new session.
+     * @return a newly created session.
+     */
+    public HttpSession createClientHttpSession(long rid, InetAddress address, StreamID id, HttpConnection connection, Locale language)
             throws UnauthorizedException {
         if (serverName == null) {
             throw new UnauthorizedException("Server not initialized");
         }
         PacketDeliverer backupDeliverer = server.getPacketDeliverer();
-        HttpSession session = new HttpSession(backupDeliverer, serverName, address, id, rid, connection);
+        HttpSession session = new HttpSession(backupDeliverer, serverName, address, id, rid, connection, language);
         Connection conn = session.getConnection();
         conn.init(session);
         conn.registerCloseListener(clientSessionListener, session);
@@ -454,7 +475,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
             lock.lock();
             List<String> streamIDs = hostnameSessionsCache.get(hostname);
             if (streamIDs == null) {
-                streamIDs = new ArrayList<String>();
+                streamIDs = new ArrayList<>();
             }
             streamIDs.add(streamID);
             hostnameSessionsCache.put(hostname, streamIDs);
@@ -468,7 +489,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
             lock.lock();
             Set<String> validatedDomains = validatedDomainsCache.get(streamID);
             if (validatedDomains == null) {
-                validatedDomains = new HashSet<String>();
+                validatedDomains = new HashSet<>();
             }
             boolean added = validatedDomains.add(hostname);
             if (added) {
@@ -516,7 +537,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
             lock.lock();
             Set<String> validatedDomains = validatedDomainsCache.get(streamID);
             if (validatedDomains == null) {
-                validatedDomains = new HashSet<String>();
+                validatedDomains = new HashSet<>();
             }
             validatedDomains.remove(hostname);
             if (!validatedDomains.isEmpty()) {
@@ -787,7 +808,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
 
 
     public Collection<ClientSession> getSessions(SessionResultFilter filter) {
-        List<ClientSession> results = new ArrayList<ClientSession>();
+        List<ClientSession> results = new ArrayList<>();
         if (filter != null) {
             // Grab all the matching sessions
             results.addAll(getSessions());
@@ -795,7 +816,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
             // Now we have a copy of the references so we can spend some time
             // doing the rest of the filtering without locking out session access
             // so let's iterate and filter each session one by one
-            List<ClientSession> filteredResults = new ArrayList<ClientSession>();
+            List<ClientSession> filteredResults = new ArrayList<>();
             for (ClientSession session : results) {
                 // Now filter on creation date if needed
                 filteredResults.add(session);
@@ -811,7 +832,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
 
             // Now generate the final list. I believe it's faster to to build up a new
             // list than it is to remove items from head and tail of the sorted tree
-            List<ClientSession> finalResults = new ArrayList<ClientSession>();
+            List<ClientSession> finalResults = new ArrayList<>();
             int startIndex = filter.getStartIndex();
             Iterator<ClientSession> sortedIter = filteredResults.iterator();
             for (int i = 0; sortedIter.hasNext() && finalResults.size() < maxResults; i++) {
@@ -860,7 +881,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
         }
         else {
             // Collect the sessions associated to the found stream IDs
-            List<IncomingServerSession> sessions = new ArrayList<IncomingServerSession>();
+            List<IncomingServerSession> sessions = new ArrayList<>();
             for (String streamID : streamIDs) {
                 // Search in local hosted sessions
                 IncomingServerSession session = localSessionManager.getIncomingServerSession(streamID);
@@ -893,7 +914,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
     }
 
     public Collection<ClientSession> getSessions(String username) {
-        List<ClientSession> sessionList = new ArrayList<ClientSession>();
+        List<ClientSession> sessionList = new ArrayList<>();
         if (username != null && serverName != null) {
             List<JID> addresses = routingTable.getRoutes(new JID(username, serverName, null, true), null);
             for (JID address : addresses) {
@@ -986,7 +1007,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
      * @return a collection with the established sessions from external components.
      */
     public Collection<ComponentSession> getComponentSessions() {
-        List<ComponentSession> sessions = new ArrayList<ComponentSession>();
+        List<ComponentSession> sessions = new ArrayList<>();
         // Add sessions of external components connected to this JVM
         sessions.addAll(localSessionManager.getComponentsSessions());
         // Add sessions of external components connected to other cluster nodes
@@ -1232,6 +1253,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
          *
          * @param handback The session that just closed
          */
+        @Override
         public void onConnectionClose(Object handback) {
             try {
                 LocalClientSession session = (LocalClientSession) handback;
@@ -1256,11 +1278,8 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
 	                    	    if (unacked.packet instanceof Message) {
 	                    	        Message m = (Message)unacked.packet;
         	                        Element delayInformation = m.addChildElement("delay", "urn:xmpp:delay");
-        	                        Element delayInformationOld = m.addChildElement("x", "jabber:x:delay");
                                         delayInformation.addAttribute("stamp", XMPPDateTimeFormat.format(unacked.timestamp));
-                                        delayInformationOld.addAttribute("stamp", XMPPDateTimeFormat.formatOld(unacked.timestamp));
                                         delayInformation.addAttribute("from", serverAddress.toBareJID());
-                                        delayInformationOld.addAttribute("from", serverAddress.toBareJID());
 	                    	    }
     	                            router.route(unacked.packet);
 	                    	}
@@ -1285,6 +1304,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
          *
          * @param handback The session that just closed
          */
+        @Override
         public void onConnectionClose(Object handback) {
             LocalComponentSession session = (LocalComponentSession)handback;
             try {
@@ -1317,6 +1337,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
          *
          * @param handback The session that just closed
          */
+        @Override
         public void onConnectionClose(Object handback) {
             IncomingServerSession session = (IncomingServerSession)handback;
             // Remove all the hostnames that were registered for this server session
@@ -1332,6 +1353,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
          *
          * @param handback The session that just closed
          */
+        @Override
         public void onConnectionClose(Object handback) {
             OutgoingServerSession session = (OutgoingServerSession)handback;
             // Remove all the hostnames that were registered for this server session
@@ -1348,6 +1370,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
          *
          * @param handback The session that just closed
          */
+        @Override
         public void onConnectionClose(Object handback) {
             ConnectionMultiplexerSession session = (ConnectionMultiplexerSession)handback;
             // Remove all the hostnames that were registered for this server session
@@ -1557,6 +1580,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
         return sessionInfoCache;
     }
 
+    @Override
     public void joinedCluster() {
         restoreCacheContent();
         // Track information about local sessions and share it with other cluster nodes
@@ -1565,10 +1589,12 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
         }
     }
 
+    @Override
     public void joinedCluster(byte[] nodeID) {
         // Do nothing
     }
 
+    @Override
     public void leftCluster() {
         if (!XMPPServer.getInstance().isShuttingDown()) {
             // Add local sessions to caches
@@ -1576,10 +1602,12 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
         }
     }
 
+    @Override
     public void leftCluster(byte[] nodeID) {
         // Do nothing
     }
 
+    @Override
     public void markedAsSeniorClusterMember() {
         // Do nothing
     }
@@ -1606,7 +1634,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
                     lock.lock();
                     List<String> streamIDs = hostnameSessionsCache.get(hostname);
                     if (streamIDs == null) {
-                        streamIDs = new ArrayList<String>();
+                        streamIDs = new ArrayList<>();
                     }
                     streamIDs.add(streamID);
                     hostnameSessionsCache.put(hostname, streamIDs);
@@ -1620,7 +1648,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
                     lock.lock();
                     Set<String> validatedDomains = validatedDomainsCache.get(streamID);
                     if (validatedDomains == null) {
-                        validatedDomains = new HashSet<String>();
+                        validatedDomains = new HashSet<>();
                     }
                     boolean added = validatedDomains.add(hostname);
                     if (added) {

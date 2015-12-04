@@ -20,8 +20,6 @@
 
 package org.jivesoftware.openfire.sasl;
 
-
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -42,6 +40,8 @@ import org.jivesoftware.openfire.auth.InternalUnauthenticatedException;
 import org.jivesoftware.openfire.auth.ScramUtils;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Implements the SCRAM-SHA-1 server-side mechanism.
@@ -49,7 +49,7 @@ import org.jivesoftware.openfire.user.UserNotFoundException;
  * @author Richard Midwinter
  */
 public class ScramSha1SaslServer implements SaslServer {
-	
+    private static final Logger Log = LoggerFactory.getLogger(ScramSha1SaslServer.class);
 	private static final Pattern
 			CLIENT_FIRST_MESSAGE = Pattern.compile("^(([pny])=?([^,]*),([^,]*),)(m?=?[^,]*,?n=([^,]*),r=([^,]*),?.*)$"),
 			CLIENT_FINAL_MESSAGE = Pattern.compile("(c=([^,]*),r=([^,]*)),p=(.*)$");
@@ -75,6 +75,7 @@ public class ScramSha1SaslServer implements SaslServer {
      * ("SCRAM-SHA-1").
      * @return A non-null string representing the IANA-registered mechanism name.
      */
+    @Override
     public String getMechanismName() {
         return "SCRAM-SHA-1";
     }
@@ -211,7 +212,7 @@ public class ScramSha1SaslServer implements SaslServer {
             }
             return ("v=" + DatatypeConverter.printBase64Binary(serverSignature))
             		.getBytes(StandardCharsets.US_ASCII);
-        } catch (UnsupportedEncodingException | UserNotFoundException | NoSuchAlgorithmException e) {
+        } catch (UserNotFoundException | NoSuchAlgorithmException e) {
             throw new SaslException(e.getMessage(), e);
         }
     }
@@ -223,6 +224,7 @@ public class ScramSha1SaslServer implements SaslServer {
       * authentication has completed successfully or should be continued.
       * @return true if the authentication exchange has completed; false otherwise.
       */
+    @Override
     public boolean isComplete() {
         return state == State.COMPLETE;
     }
@@ -234,6 +236,7 @@ public class ScramSha1SaslServer implements SaslServer {
      * @return The authorization ID of the client.
      * @exception IllegalStateException if this authentication session has not completed
      */
+    @Override
     public String getAuthorizationID() {
         if (isComplete()) {
             return username;
@@ -247,6 +250,7 @@ public class ScramSha1SaslServer implements SaslServer {
      * 
      * @throws SaslException if attempted to use this method.
      */
+    @Override
     public byte[] unwrap(byte[] incoming, int offset, int len)
         throws SaslException {
     	if (isComplete()) {
@@ -261,6 +265,7 @@ public class ScramSha1SaslServer implements SaslServer {
      *
      * @throws SaslException if attempted to use this method.
      */
+    @Override
     public byte[] wrap(byte[] outgoing, int offset, int len)
         throws SaslException {
     	if (isComplete()) {
@@ -281,6 +286,7 @@ public class ScramSha1SaslServer implements SaslServer {
      * not negotiated or is not applicable to this mechanism.
      * @exception IllegalStateException if this authentication exchange has not completed
      */
+    @Override
     public Object getNegotiatedProperty(String propName) {
     	if (isComplete()) {
             if (propName.equals(Sasl.QOP)) {
@@ -300,6 +306,7 @@ public class ScramSha1SaslServer implements SaslServer {
       * @throws SaslException If a problem was encountered while disposing
       * the resources.
       */
+    @Override
     public void dispose() throws SaslException {
         username = null;
         state = State.INITIAL;
@@ -315,6 +322,7 @@ public class ScramSha1SaslServer implements SaslServer {
             String saltshaker = UserManager.getUserProvider().loadUser(username).getSalt();
             byte[] salt;
             if (saltshaker == null) {
+                Log.debug("No salt found, so resetting password.");
                 String password = AuthFactory.getPassword(username);
                 AuthFactory.setPassword(username, password);
                 salt = DatatypeConverter.parseBase64Binary(UserManager.getUserProvider().loadUser(username).getSalt());
@@ -323,7 +331,8 @@ public class ScramSha1SaslServer implements SaslServer {
             }
             return salt;
         } catch (UserNotFoundException | UnsupportedOperationException | ConnectionException | InternalUnauthenticatedException e) {
-            byte[] salt = new byte[32];
+            Log.warn("Exception in SCRAM.getSalt():", e);
+            byte[] salt = new byte[24];
             random.nextBytes(salt);
             return salt;
         }

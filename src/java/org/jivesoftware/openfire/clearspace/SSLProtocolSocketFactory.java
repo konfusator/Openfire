@@ -35,7 +35,9 @@ import org.apache.commons.httpclient.ConnectTimeoutException;
 import org.apache.commons.httpclient.HttpClientError;
 import org.apache.commons.httpclient.params.HttpConnectionParams;
 import org.apache.commons.httpclient.protocol.SecureProtocolSocketFactory;
-import org.jivesoftware.openfire.net.SSLConfig;
+import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.keystore.CertificateStoreManager;
+import org.jivesoftware.openfire.spi.ConnectionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,14 +64,19 @@ public class SSLProtocolSocketFactory implements SecureProtocolSocketFactory {
 
     private SSLContext createSSLContext(String host) {
         try {
-            SSLContext context = SSLContext.getInstance("SSL");
+            final SSLContext context = SSLContext.getInstance( "TLSv1" );
             context.init(
                     null,
-                    new TrustManager[]{new ClearspaceX509TrustManager(host, manager.getProperties(), SSLConfig.gets2sTrustStore())},
+                    new TrustManager[] {
+                            new ClearspaceX509TrustManager(
+                                    host,
+                                    manager.getProperties(),
+                                    XMPPServer.getInstance().getCertificateStoreManager().getTrustStore( ConnectionType.SOCKET_S2S ).getStore() )
+                    },
                     null);
             return context;
         } catch (Exception e) {
-            Log.error(e.getMessage(), e);
+            Log.error("An exception occurred while trying to create an SSL Context for host: '"+host+"'", e);
             throw new HttpClientError(e.toString());
         }
     }
@@ -84,6 +91,7 @@ public class SSLProtocolSocketFactory implements SecureProtocolSocketFactory {
     /**
      * @see SecureProtocolSocketFactory#createSocket(java.lang.String,int,java.net.InetAddress,int)
      */
+    @Override
     public Socket createSocket(
             String host,
             int port,
@@ -118,6 +126,7 @@ public class SSLProtocolSocketFactory implements SecureProtocolSocketFactory {
      * @throws UnknownHostException if the IP address of the host cannot be
      *                              determined
      */
+    @Override
     public Socket createSocket(
             final String host,
             final int port,
@@ -146,6 +155,7 @@ public class SSLProtocolSocketFactory implements SecureProtocolSocketFactory {
     /**
      * @see org.apache.commons.httpclient.protocol.SecureProtocolSocketFactory#createSocket(java.lang.String,int)
      */
+    @Override
     public Socket createSocket(String host, int port)
             throws IOException, UnknownHostException {
         return getSSLContext(host).getSocketFactory().createSocket(
@@ -157,6 +167,7 @@ public class SSLProtocolSocketFactory implements SecureProtocolSocketFactory {
     /**
      * @see org.apache.commons.httpclient.protocol.SecureProtocolSocketFactory#createSocket(java.net.Socket,java.lang.String,int,boolean)
      */
+    @Override
     public Socket createSocket(
             Socket socket,
             String host,

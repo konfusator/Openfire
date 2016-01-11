@@ -144,7 +144,7 @@
 
 <p>
 <fmt:message key="component.session.summary.info">
-    <fmt:param value="<a href=\"external-components-settings.jsp\">" />
+    <fmt:param value="<a href=\"connection-settings-external-components.jsp\">" />
     <fmt:param value="</a>" />
 </fmt:message>
 </p>
@@ -223,11 +223,6 @@
              <% }
                 else if ("irc".equals(componentSession.getExternalComponent().getType())) { %>
                 <td><img src="images/irc.gif" width="16" height="16" border="0" alt="IRC"></td>
-             <% }
-               }
-               else if ("component".equals(componentSession.getExternalComponent().getCategory())) {
-                if ("clearspace".equals(componentSession.getExternalComponent().getType().toLowerCase())) { %>
-                <td><img src="images/clearspace.gif" width="16" height="16" border="0" alt="Clearspace"></td> 
              <% }
                }
             %>

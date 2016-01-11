@@ -24,7 +24,7 @@
     <!-- ======================================================================================= -->
 
     <property name="version.major" value="4"/>
-    <property name="version.minor" value="0"/>
+    <property name="version.minor" value="1"/>
     <property name="version.revision" value="0"/>
     <property name="version.extra" value="alpha"/>    <!-- For 'beta' or 'alpha' -->
 
@@ -129,6 +129,23 @@
         <fileset dir="${ant.home}/lib" includes="ant.jar" />
     </path>
 
+    <!-- Reference DTDs and XSDs on the classpath, to prevent them from being looked up online. -->
+    <xmlcatalog id="dtds">
+        <!-- Provided on the classpath (by Jetty/Jasper) -->
+        <entity publicId="http://java.sun.com/xml/ns/j2ee" location="javax/servlet/jsp/resources/jsp_2_0.xsd"/>
+        <entity publicId="http://java.sun.com/xml/ns/javaee" location="javax/servlet/jsp/resources/jsp_2_1.xsd"/>
+        <entity publicId="http://java.sun.com/xml/ns/javaee" location="javax/servlet/jsp/resources/jsp_2_2.xsd"/>
+        <entity publicId="http://xmlns.jcp.org/xml/ns/javaee" location="javax/servlet/jsp/resources/jsp_2_3.xsd"/>
+        <entity publicId="http://java.sun.com/JSP/Page" location="javax/servlet/jsp/resources/jspxml_2_0.xsd"/>
+        <entity publicId="http://java.sun.com/xml/ns/j2ee" location="javax/servlet/jsp/resources/web-jsptaglibrary_2_0.xsd"/>
+        <entity publicId="http://java.sun.com/xml/ns/javaee" location="javax/servlet/jsp/resources/web-jsptaglibrary_2_1.xsd"/>
+        <dtd publicId="http://java.sun.com/JSP/Page" location="javax/servlet/jsp/resources/jspxml_2_0.dtd"/>
+        <dtd publicId="-//Sun Microsystems, Inc.//DTD JSP Tag Library 1.2//EN" location="javax/servlet/jsp/resources/web-jsptaglibrary_1_2.dtd"/>
+
+        <!-- Provided in the lib folder -->
+        <dtd publicId="-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN" location="${lib.ant.dir}/web-app_2_3.dtd"/>
+    </xmlcatalog>
+
     <!-- ======================================================================================= -->
     <!-- GLOBAL TASKDEFs                                                                         -->
     <!-- ======================================================================================= -->
@@ -140,6 +157,9 @@
         <classpath refid="ant.dependencies" />
     </taskdef>
     <taskdef name="propertymerge" classname="org.jugbb.ant.propertymerge.PropertyMergeTask">
+        <classpath refid="ant.dependencies" />
+    </taskdef>
+    <taskdef name="junit" classname="org.apache.tools.ant.taskdefs.optional.junit.JUnitTask">
         <classpath refid="ant.dependencies" />
     </taskdef>
 
@@ -212,6 +232,7 @@
 
     <patternset id="test.sources">
         <include name="**/*Test.java"/>
+        <exclude name="**/CheckChainTrustedTest.java" if="skipResourceIntensiveTests"/>
     </patternset>
 
     <patternset id="web.sources">
@@ -386,6 +407,7 @@
         <for list="${dirlist}" param="plugin" trim="true">
             <sequential>
                 <xmltask source="${plugin.src.dir}/@{plugin}/plugin.xml" dest="${plugin.src.dir}/@{plugin}/plugins2.xml">
+                    <xmlcatalog refid="dtds"/>
                     <insert path="/plugin/minOpenfireVersion[last()]"  position="after">
                         <![CDATA[
                           <development>
@@ -609,6 +631,20 @@
             </filterset>
         </copy>
 
+        <!-- When there is a web.xml in the overlay use that. -->
+        <if>
+            <available file="${overlay.web.dir}/WEB-INF/web.xml" />
+            <then>
+                <copy file="${overlay.web.dir}/WEB-INF/web.xml"
+                      toFile="${webapp.dest.dir}/WEB-INF/web.xml"
+                      overwrite="true">
+                    <filterset begintoken="&lt;!--@@" endtoken="@@--&gt;">
+                        <filter token="JSPC-SERVLETS" value="${servlet-xml}"/>
+                    </filterset>
+                </copy>
+            </then>
+        </if>
+
         <!-- Copy over other WEB-INF files. -->
         <copy todir="${webapp.dest.dir}/WEB-INF" overwrite="true">
             <fileset dir="${web.dir}/WEB-INF">
@@ -657,7 +693,7 @@
 
         <!-- Run jUnit -->
         <mkdir dir="${test.results.dest.dir}"/>
-        <junit printsummary="yes" haltonfailure="yes" fork="yes" dir="${test.dest.dir}">
+        <junit printsummary="yes" haltonfailure="yes" fork="yes" dir="${test.dest.dir}" includeantruntime="false">
 	    <sysproperty key="openfireHome" value="${target.openfireHome}"/>
 
             <!-- We must add our own classes to the classpath for testing -->
@@ -1259,8 +1295,8 @@
                     destdir="${plugin.dev.dest.dir}/@{plugin}/target/classes"
                     includeAntRuntime="no"
                     debug="on"
-                    source="1.5"
-                    target="1.5"
+                    source="${javac.source}"
+                    target="${javac.target}"
                     >
                 <src path="@{pluginsrc}/@{parentPlug}/src/java"/>
                 <classpath>
@@ -1457,12 +1493,14 @@
                                 <!-- Copy the servlet and servlet-mapping elements from the original web.xml to a temp buffer.
                                      Note: The original web.xml can only contain one servlet and servlet-mapping -->
                                 <xmltask source="@{pluginsrc}/@{plugin}/src/web/WEB-INF/web.xml">
+                                    <xmlcatalog refid="dtds"/>
                                     <copy path="//web-app/servlet[last()]" buffer="foobar"/>
                                     <copy path="//web-app/servlet-mapping[last()]" buffer="foobar2"/>
                                 </xmltask>
                                 <!-- Add the copied servlet and servlet-mapping elements to the generated web.xml -->
                                 <xmltask source="${plugin.dev.dest.dir}/@{plugin}/target/jspc/web.xml"
                                          dest="${plugin.dev.dest.dir}/@{plugin}/target/web/WEB-INF/web.xml">
+                                    <xmlcatalog refid="dtds"/>
                                     <insert path="/web-app/servlet[last()]" buffer="foobar"
                                             position="after"/>
                                     <insert path="/web-app/servlet-mapping[last()]" buffer="foobar2"

@@ -26,10 +26,8 @@ import java.util.Map;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.dom4j.DocumentException;
 import org.dom4j.DocumentHelper;
@@ -40,6 +38,7 @@ import org.jivesoftware.openfire.StreamID;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.util.JiveConstants;
 import org.jivesoftware.util.JiveGlobals;
+import org.jivesoftware.util.NamedThreadFactory;
 import org.jivesoftware.util.TaskEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,39 +80,13 @@ public class HttpSessionManager {
     	
         JiveGlobals.migrateProperty("xmpp.httpbind.worker.threads");
         JiveGlobals.migrateProperty("xmpp.httpbind.worker.timeout");
-    	
-        this.sessionManager = SessionManager.getInstance();
-        init();
     }
 
-    public void init() {
-        Log.warn("HttpSessionManager.init() recreate sendPacketPool");
-        // Configure a pooled executor to handle async routing for incoming packets
-        // with a default size of 16 threads ("xmpp.httpbind.worker.threads"); also
-        // uses an unbounded task queue and configurable keep-alive (default: 60 secs)
-        
-        // Note: server supports up to 254 client threads by default (@see HttpBindManager)
-        // BOSH installations expecting heavy loads may want to allocate additional threads 
-        // to this worker pool to ensure timely delivery of inbound packets
-        
-        int maxPoolSize = JiveGlobals.getIntProperty("xmpp.httpbind.worker.threads", 
-				// use deprecated property as default (shared with ConnectionManagerImpl)
-				JiveGlobals.getIntProperty("xmpp.client.processing.threads", 8));
-        int keepAlive = JiveGlobals.getIntProperty("xmpp.httpbind.worker.timeout", 60);
-
-        sendPacketPool = new ThreadPoolExecutor(getCorePoolSize(maxPoolSize), maxPoolSize, keepAlive, TimeUnit.SECONDS, 
-			new LinkedBlockingQueue<Runnable>(), // unbounded task queue
-	        new ThreadFactory() { // custom thread factory for BOSH workers
-	            final AtomicInteger counter = new AtomicInteger(1);
-	            @Override
-	            public Thread newThread(Runnable runnable) {
-	                Thread thread = new Thread(Thread.currentThread().getThreadGroup(), runnable,
-	                                    "httpbind-worker-" + counter.getAndIncrement());
-	                thread.setDaemon(true);
-	                return thread;
-	            }
-	    	});
-    }
+    /**
+     * @deprecated As of Openfire 4.0.0, the functionality of this method was added to the implementation of #start().
+     */
+    @Deprecated
+    public void init() {}
 
 	private int getCorePoolSize(int maxPoolSize) {
 		return (maxPoolSize/4)+1;
@@ -121,18 +94,41 @@ public class HttpSessionManager {
 
     /**
      * Starts the services used by the HttpSessionManager.
+     *
+     * (Re)creates and configures a pooled executor to handle async routing for incoming packets with a configurable
+     * (through property "xmpp.httpbind.worker.threads") amount of threads; also uses an unbounded task queue and
+     * configurable ("xmpp.httpbind.worker.timeout") keep-alive.
+     *
+     * Note: Apart from the processing threads configured in this class, the server also uses a threadpool to perform
+     * the network IO (as configured in ({@link HttpBindManager}). BOSH installations expecting heavy loads may want to
+     * allocate additional threads to this worker pool to ensure timely delivery of inbound packets
      */
     public void start() {
-        inactivityTask = new HttpSessionReaper();
-        TaskEngine.getInstance().schedule(inactivityTask, 30 * JiveConstants.SECOND,
-                30 * JiveConstants.SECOND);
+        Log.info( "Starting instance" );
+
+        this.sessionManager = SessionManager.getInstance();
+
+        final int maxClientPoolSize = JiveGlobals.getIntProperty( "xmpp.client.processing.threads", 8 );
+        final int maxPoolSize = JiveGlobals.getIntProperty("xmpp.httpbind.worker.threads", maxClientPoolSize );
+        final int keepAlive = JiveGlobals.getIntProperty( "xmpp.httpbind.worker.timeout", 60 );
+
+        sendPacketPool = new ThreadPoolExecutor(getCorePoolSize(maxPoolSize), maxPoolSize, keepAlive, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<Runnable>(), // unbounded task queue
+                new NamedThreadFactory( "httpbind-worker-", true, null, Thread.currentThread().getThreadGroup(), null )
+        );
+
         sendPacketPool.prestartCoreThread();
+
+        // Periodically check for Sessions that need a cleanup.
+        inactivityTask = new HttpSessionReaper();
+        TaskEngine.getInstance().schedule( inactivityTask, 30 * JiveConstants.SECOND, 30 * JiveConstants.SECOND );
     }
 
     /**
      * Stops any services and cleans up any resources used by the HttpSessionManager.
      */
     public void stop() {
+        Log.info( "Stopping instance" );
         inactivityTask.cancel();
         for (HttpSession session : sessionMap.values()) {
             session.close();

@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.jivesoftware.openfire.muc.cluster.UpdateHistoryStrategy;
 import org.jivesoftware.openfire.muc.spi.MUCPersistenceManager;
+import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.cache.CacheFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -181,20 +182,17 @@ public class HistoryStrategy {
         }
 
         // Room subject change messages are special
-        boolean subjectChange = false;
-        if (packet.getSubject() != null && packet.getSubject().length() > 0){
-            subjectChange = true;
+        boolean subjectChange = isSubjectChangeRequest(packet);
+        if (subjectChange) {
             roomSubject = packet;
         }
 
         // store message according to active strategy
-        if (strategyType == Type.none){
-            if (subjectChange) {
-                history.clear();
-                history.add(packet);
-            }
+        if (strategyType == Type.none && subjectChange) {
+            history.clear();
+            history.add(packet);
         }
-        else if (strategyType == Type.all) {
+        else if (strategyType == Type.all || subjectChange) {
             history.add(packet);
         }
         else if (strategyType == Type.number) {
@@ -322,7 +320,38 @@ public class HistoryStrategy {
         return roomSubject;
     }
 
-    private static class MessageComparator implements Comparator<Message> {
+    /**
+     * Returns true if the given message qualifies as a subject change request for
+     * the target MUC room, per XEP-0045. Note that this does not validate whether 
+     * the sender has permission to make the change, because subject change requests
+     * may be loaded from history or processed "live" during a user's session.
+     * 
+     * Refer to http://xmpp.org/extensions/xep-0045.html#subject-mod for details.
+     * 
+     * @return true if the given packet is a subject change request
+     */
+	public boolean isSubjectChangeRequest(Message message) {
+		
+		// The subject is changed by sending a message of type "groupchat" to the <room@service>, 
+		// where the <message/> MUST contain a <subject/> element that specifies the new subject 
+		// but MUST NOT contain a <body/> element (or a <thread/> element).
+		// Unfortunately, many clients do not follow these strict guidelines from the specs, so we
+		// allow a lenient policy for detecting non-conforming subject change requests. This can be
+		// configured by setting the "xmpp.muc.subject.change.strict" property to false (true by default).
+		// An empty <subject/> value means that the room subject should be removed.
+
+		return Message.Type.groupchat == message.getType() && 
+				message.getSubject() != null && 
+				(!isSubjectChangeStrict() || 
+				    (message.getBody() == null && 
+				     message.getThread() == null));
+	}
+
+	private boolean isSubjectChangeStrict() {
+		return JiveGlobals.getBooleanProperty("xmpp.muc.subject.change.strict", true);
+	}
+
+	private static class MessageComparator implements Comparator<Message> {
         @Override
         public int compare(Message o1, Message o2) {
             String stamp1 = o1.getChildElement("delay", "urn:xmpp:delay").attributeValue("stamp");

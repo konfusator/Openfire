@@ -19,13 +19,10 @@ import java.net.InetSocketAddress;
 
 import org.dom4j.Namespace;
 import org.jivesoftware.openfire.PacketDeliverer;
-import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.net.VirtualConnection;
 import org.jivesoftware.openfire.nio.OfflinePacketDeliverer;
 import org.jivesoftware.openfire.spi.ConnectionConfiguration;
-import org.jivesoftware.openfire.spi.ConnectionManagerImpl;
-import org.jivesoftware.openfire.spi.ConnectionType;
 import org.xmpp.packet.Packet;
 import org.xmpp.packet.StreamError;
 
@@ -35,7 +32,6 @@ import org.xmpp.packet.StreamError;
  */
 public class WebSocketConnection extends VirtualConnection
 {
-	private static final String CLIENT_NAMESPACE = "jabber:client";
     private InetSocketAddress remotePeer;
     private XmppWebSocket socket;
     private PacketDeliverer backupDeliverer;
@@ -75,11 +71,17 @@ public class WebSocketConnection extends VirtualConnection
 	@Override
     public void deliver(Packet packet) throws UnauthorizedException
     {
-    	if (Namespace.NO_NAMESPACE.equals(packet.getElement().getNamespace())) {
-    		packet.getElement().add(Namespace.get(CLIENT_NAMESPACE));
-    	}
+        final String xml;
+        if (Namespace.NO_NAMESPACE.equals(packet.getElement().getNamespace())) {
+            // use string-based operation here to avoid cascading xmlns wonkery
+            StringBuilder packetXml = new StringBuilder(packet.toXML());
+            packetXml.insert(packetXml.indexOf(" "), " xmlns=\"jabber:client\"");
+            xml = packetXml.toString();
+        } else {
+            xml = packet.toXML();
+        }
     	if (validate()) {
-    		deliverRawText(packet.toXML());
+    		deliverRawText(xml);
     	} else {
     		// use fallback delivery mechanism (offline)
     		getPacketDeliverer().deliver(packet);

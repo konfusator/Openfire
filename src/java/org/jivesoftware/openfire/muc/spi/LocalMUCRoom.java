@@ -512,7 +512,7 @@ public class LocalMUCRoom implements MUCRoom, GroupEventListener {
 
     @Override
     public int getOccupantsCount() {
-        return occupantsByFullJID.size();
+        return occupantsByNickname.size();
     }
 
     @Override
@@ -563,6 +563,8 @@ public class LocalMUCRoom implements MUCRoom, GroupEventListener {
         }
         LocalMUCRole joinRole = null;
         lock.writeLock().lock();
+        boolean clientOnlyJoin = false;
+        // A "client only join" here is one where the client is already joined, but has re-joined.
         try {
             // If the room has a limit of max user then check if the limit has been reached
             if (!canJoinRoom(user)) {
@@ -583,6 +585,9 @@ public class LocalMUCRoom implements MUCRoom, GroupEventListener {
                 if (occupant != null && !occupant.getUserAddress().toBareJID().equals(bareJID.toBareJID())) {
                     // Nickname is already used, and not by the same JID
                     throw new UserAlreadyExistsException();
+                }
+                if (occupant.getUserAddress().equals(user.getAddress())) {
+                    clientOnlyJoin = true; // This user is already an occupant. The client thinks it isn't. (Or else this is a broken gmail).
                 }
             }
             // If the room is password protected and the provided password is incorrect raise a
@@ -650,23 +655,29 @@ public class LocalMUCRoom implements MUCRoom, GroupEventListener {
                 role = (isModerated() ? MUCRole.Role.visitor : MUCRole.Role.participant);
                 affiliation = MUCRole.Affiliation.none;
             }
-            // Create a new role for this user in this room
-            joinRole = new LocalMUCRole(mucService, this, nickname, role, affiliation, user, presence, router);
-            // Add the new user as an occupant of this room
-            List<MUCRole> occupants = occupantsByNickname.get(nickname.toLowerCase());
-            if (occupants == null) {
-            	occupants = new ArrayList<>();
-            	occupantsByNickname.put(nickname.toLowerCase(), occupants);
-            }
-            occupants.add(joinRole);
-            // Update the tables of occupants based on the bare and full JID
-            List<MUCRole> list = occupantsByBareJID.get(bareJID);
-            if (list == null) {
-                list = new ArrayList<>();
-                occupantsByBareJID.put(bareJID, list);
-            }
-            list.add(joinRole);
-            occupantsByFullJID.put(user.getAddress(), joinRole);
+            if (!clientOnlyJoin) {
+                // Create a new role for this user in this room
+                joinRole = new LocalMUCRole(mucService, this, nickname, role,
+                        affiliation, user, presence, router);
+                // Add the new user as an occupant of this room
+                List<MUCRole> occupants = occupantsByNickname.get(nickname.toLowerCase());
+                if (occupants == null) {
+                    occupants = new ArrayList<>();
+                    occupantsByNickname.put(nickname.toLowerCase(), occupants);
+                }
+                occupants.add(joinRole);
+                // Update the tables of occupants based on the bare and full JID
+                List<MUCRole> list = occupantsByBareJID.get(bareJID);
+                if (list == null) {
+                    list = new ArrayList<>();
+                    occupantsByBareJID.put(bareJID, list);
+                }
+                list.add(joinRole);
+                occupantsByFullJID.put(user.getAddress(), joinRole);
+            } else {
+                // Grab the existing one.
+                joinRole = (LocalMUCRole) occupantsByFullJID.get(user.getAddress());
+           }
         }
         finally {
             lock.writeLock().unlock();
@@ -706,10 +717,13 @@ public class LocalMUCRoom implements MUCRoom, GroupEventListener {
         else {
             historyRequest.sendHistory(joinRole, roomHistory);
         }
-        // Update the date when the last occupant left the room
-        setEmptyDate(null);
-        // Fire event that occupant joined the room
-        MUCEventDispatcher.occupantJoined(getRole().getRoleAddress(), user.getAddress(), joinRole.getNickname());
+        if (!clientOnlyJoin) {
+            // Update the date when the last occupant left the room
+            setEmptyDate(null);
+            // Fire event that occupant joined the room
+            MUCEventDispatcher.occupantJoined(getRole().getRoleAddress(),
+                    user.getAddress(), joinRole.getNickname());
+       }
         return joinRole;
     }
 
@@ -2010,10 +2024,6 @@ public class LocalMUCRoom implements MUCRoom, GroupEventListener {
     public void changeSubject(Message packet, MUCRole role) throws ForbiddenException {
         if ((canOccupantsChangeSubject() && role.getRole().compareTo(MUCRole.Role.visitor) < 0) ||
                 MUCRole.Role.moderator == role.getRole()) {
-            // Do nothing if the new subject is the same as the existing one
-            if (packet.getSubject().equals(subject)) {
-                return;
-            }
             // Set the new subject to the room
             subject = packet.getSubject();
             MUCPersistenceManager.updateRoomSubject(this);
@@ -2024,10 +2034,8 @@ public class LocalMUCRoom implements MUCRoom, GroupEventListener {
             // Fire event signifying that the room's subject has changed.
             MUCEventDispatcher.roomSubjectChanged(getJID(), role.getUserAddress(), subject);
 
-            if (!"local-only".equals(packet.getID())) {
-	            // Let other cluster nodes that the room has been updated
-	            CacheFactory.doClusterTask(new RoomUpdatedEvent(this));
-            }
+            // Let other cluster nodes that the room has been updated
+	        CacheFactory.doClusterTask(new RoomUpdatedEvent(this));
         }
         else {
             throw new ForbiddenException();
@@ -2107,6 +2115,17 @@ public class LocalMUCRoom implements MUCRoom, GroupEventListener {
 
     @Override
     public void sendInvitationRejection(JID to, String reason, JID sender) {
+	if (((MultiUserChatServiceImpl)mucService).getMUCDelegate() != null) {
+        	switch(((MultiUserChatServiceImpl)mucService).getMUCDelegate().sendingInvitationRejection(this, to, sender, reason)) {
+                	case HANDLED_BY_DELEGATE:
+                    	//if the delegate is taking care of it, there's nothing for us to do
+                    		return;
+                	case HANDLED_BY_OPENFIRE:
+                    	//continue as normal if we're asked to handle it
+                    		break;
+            	}
+        }
+
         Message message = new Message();
         message.setFrom(role.getRoleAddress());
         message.setTo(to);

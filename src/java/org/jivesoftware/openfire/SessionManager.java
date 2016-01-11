@@ -379,7 +379,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
     /**
      * Creates a new <tt>ClientSession</tt> with the specified streamID.
      *
-     * @param conn the connection to create the session from.
+     * @param connection the connection to create the session from.
      * @param id the streamID to use for the new session.
      * @return a newly created session.
      */
@@ -620,12 +620,6 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
             routingTable.addClientRoute(session.getAddress(), session);
             // Broadcast presence between the user's resources
             broadcastPresenceOfOtherResource(session);
-
-            // RFC 6121 § 4.4.2.
-            // The user's server MUST also send the presence stanza to all of the user's available resources (including the resource that generated the presence notification in the first place).
-            Presence selfPresence = presence.createCopy();
-            selfPresence.setTo(session.getAddress());
-            routingTable.routePacket(session.getAddress(), selfPresence, false);
         }
     }
 
@@ -675,6 +669,10 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
      * @param presence the presence.
      */
     public void broadcastPresenceToOtherResources(JID originatingResource, Presence presence) {
+        // RFC 6121 4.4.2 says we always send to the originating resource.
+        // Also RFC 6121 4.2.2 for updates.
+        presence.setTo(originatingResource);
+        routingTable.routePacket(originatingResource, presence, false);
         if (!SessionManager.isOtherResourcePresenceEnabled()) {
             return;
         }
@@ -1269,22 +1267,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener/
                         router.route(presence);
                     }
 
-                    // Re-deliver unacknowledged stanzas from broken stream (XEP-0198)
-                    if(session.getStreamManager().isEnabled()) {
-                            session.getStreamManager().setEnabled(false); // Avoid concurrent usage.
-	                    Deque<StreamManager.UnackedPacket> unacknowledgedStanzas = session.getStreamManager().getUnacknowledgedServerStanzas();
-	                    if(!unacknowledgedStanzas.isEmpty()) {
-	                    	for(StreamManager.UnackedPacket unacked : unacknowledgedStanzas) {
-	                    	    if (unacked.packet instanceof Message) {
-	                    	        Message m = (Message)unacked.packet;
-        	                        Element delayInformation = m.addChildElement("delay", "urn:xmpp:delay");
-                                        delayInformation.addAttribute("stamp", XMPPDateTimeFormat.format(unacked.timestamp));
-                                        delayInformation.addAttribute("from", serverAddress.toBareJID());
-	                    	    }
-    	                            router.route(unacked.packet);
-	                    	}
-	                    }
-                    }
+                    session.getStreamManager().onClose(router, serverAddress);
                 }
                 finally {
                     // Remove the session

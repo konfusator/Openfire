@@ -23,11 +23,13 @@ import org.dom4j.Element;
 import org.dom4j.io.XMPPPacketReader;
 import org.jivesoftware.openfire.Connection;
 import org.jivesoftware.openfire.PacketRouter;
+import org.jivesoftware.openfire.StreamIDFactory;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.http.FlashCrossDomainServlet;
 import org.jivesoftware.openfire.session.LocalSession;
 import org.jivesoftware.openfire.session.Session;
+import org.jivesoftware.openfire.spi.BasicStreamIDFactory;
 import org.jivesoftware.openfire.streammanagement.StreamManager;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.LocaleUtils;
@@ -50,6 +52,11 @@ import java.io.StringReader;
 public abstract class StanzaHandler {
 
 	private static final Logger Log = LoggerFactory.getLogger(StanzaHandler.class);
+
+    /**
+     * A factory that generates random stream IDs
+     */
+    private static final StreamIDFactory STREAM_ID_FACTORY = new BasicStreamIDFactory();
 
     /**
      * The utf-8 charset for decoding and encoding Jabber packet streams.
@@ -183,21 +190,8 @@ public abstract class StanzaHandler {
                 // resource binding and session establishment (to client sessions only)
                 waitingCompressionACK = true;
             }
-        } else if(isStreamManagementStanza(doc)) {
-        	switch(tag) {
-        		case "enable":
-        			session.enableStreamMangement(doc);
-        			break;
-        		case "r":
-        			session.getStreamManager().sendServerAcknowledgement();
-        			break;
-        		case "a":
-        			session.getStreamManager().processClientAcknowledgement(doc);
-        			break;
-        		default:
-        			process(doc);
-        			break;
-        	}
+        } else if (isStreamManagementStanza(doc)) {
+            session.getStreamManager().process( doc, session.getAddress() );
         }
         else {
             process(doc);
@@ -580,7 +574,7 @@ public abstract class StanzaHandler {
         sb.append("\" id=\"");
         sb.append(session.getStreamID());
         sb.append("\" xml:lang=\"");
-        sb.append(session.getLanguage());
+        sb.append(session.getLanguage().toLanguageTag());
         sb.append("\" version=\"");
         sb.append(Session.MAJOR_VERSION).append('.').append(Session.MINOR_VERSION);
         sb.append("\">");
@@ -659,7 +653,7 @@ public abstract class StanzaHandler {
             // Append stream header
             sb.append("<stream:stream ");
             sb.append("from=\"").append(serverName).append("\" ");
-            sb.append("id=\"").append(StringUtils.randomString(5)).append("\" ");
+            sb.append("id=\"").append(STREAM_ID_FACTORY.createStreamID()).append("\" ");
             sb.append("xmlns=\"").append(xpp.getNamespace(null)).append("\" ");
             sb.append("xmlns:stream=\"http://etherx.jabber.org/streams\" ");
             sb.append("version=\"1.0\">");

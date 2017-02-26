@@ -1,7 +1,4 @@
 /**
- * $Revision$
- * $Date$
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +26,7 @@ import javax.security.auth.callback.UnsupportedCallbackException;
 import javax.security.sasl.AuthorizeCallback;
 import javax.security.sasl.RealmCallback;
 
+import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.auth.AuthFactory;
 import org.jivesoftware.openfire.auth.AuthToken;
 import org.jivesoftware.openfire.auth.AuthorizationManager;
@@ -66,11 +64,7 @@ public class XMPPCallbackHandler implements CallbackHandler {
 
         for (Callback callback : callbacks) {
             if (callback instanceof RealmCallback) {
-                realm = ((RealmCallback) callback).getText();
-                if (realm == null) {
-                    realm = ((RealmCallback) callback).getDefaultText();
-                }
-                //Log.debug("XMPPCallbackHandler: RealmCallback: " + realm);
+                ((RealmCallback) callback).setText( XMPPServer.getInstance().getServerInfo().getXMPPDomain() );
             }
             else if (callback instanceof NameCallback) {
                 name = ((NameCallback) callback).getName();

@@ -1,8 +1,4 @@
 /**
- * $RCSfile: ConnectionManagerImpl.java,v $
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,24 +16,19 @@
 
 package org.jivesoftware.openfire.spi;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.net.UnknownHostException;
-import java.security.KeyStore;
-import java.security.cert.X509Certificate;
-import java.util.*;
-
 import org.apache.mina.core.buffer.IoBuffer;
 import org.apache.mina.core.buffer.SimpleBufferAllocator;
 import org.apache.mina.transport.socket.nio.NioSocketAcceptor;
-import org.jivesoftware.openfire.*;
+import org.jivesoftware.openfire.Connection;
+import org.jivesoftware.openfire.ConnectionManager;
+import org.jivesoftware.openfire.ServerPort;
+import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.container.BasicModule;
 import org.jivesoftware.openfire.container.PluginManager;
 import org.jivesoftware.openfire.container.PluginManagerListener;
 import org.jivesoftware.openfire.http.HttpBindManager;
 import org.jivesoftware.openfire.keystore.CertificateStoreManager;
-import org.jivesoftware.openfire.net.*;
+import org.jivesoftware.openfire.net.SocketSendingTracker;
 import org.jivesoftware.openfire.session.ConnectionSettings;
 import org.jivesoftware.util.CertificateEventListener;
 import org.jivesoftware.util.CertificateManager;
@@ -45,6 +36,13 @@ import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.PropertyEventListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.security.KeyStore;
+import java.security.cert.X509Certificate;
+import java.util.*;
 
 public class ConnectionManagerImpl extends BasicModule implements ConnectionManager, CertificateEventListener, PropertyEventListener
 {
@@ -76,6 +74,8 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         super("Connection Manager");
 
         InetAddress bindAddress = null;
+        InetAddress adminConsoleBindAddress = null;
+
         try
         {
             bindAddress = getListenAddress();
@@ -83,6 +83,19 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         catch ( UnknownHostException e )
         {
             Log.warn( "Unable to resolve bind address: ", e );
+        }
+
+        try
+        {
+            adminConsoleBindAddress = getAdminConsoleListenAddress();
+            if( adminConsoleBindAddress == null )
+            {
+                adminConsoleBindAddress = bindAddress;
+            }
+        }
+        catch( UnknownHostException e )
+        {
+            Log.warn(  "Unable to resolve admin console bind address: ", e );
         }
 
         final CertificateStoreManager certificateStoreManager = XMPPServer.getInstance().getCertificateStoreManager();
@@ -230,7 +243,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
                 null,
                 Connection.TLSPolicy.disabled.name(), // StartTLS over HTTP? Should use webAdminSslListener instead.
                 null,
-                bindAddress,
+                adminConsoleBindAddress,
                 certificateStoreManager.getIdentityStoreConfiguration( ConnectionType.WEBADMIN ),
                 certificateStoreManager.getTrustStoreConfiguration( ConnectionType.WEBADMIN ),
                 null // Should we have compression on the admin console?
@@ -245,7 +258,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
                 null,
                 Connection.TLSPolicy.legacyMode.name(),
                 null,
-                bindAddress,
+                adminConsoleBindAddress,
                 certificateStoreManager.getIdentityStoreConfiguration( ConnectionType.WEBADMIN ),
                 certificateStoreManager.getTrustStoreConfiguration( ConnectionType.WEBADMIN ),
                 null // Should we have compression on the admin console?
@@ -259,24 +272,32 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
     private synchronized void startListeners()
     {
         // Check if plugins have been loaded
+        Log.debug( "Received a request to start listeners. Have plugins been loaded?" );
         PluginManager pluginManager = XMPPServer.getInstance().getPluginManager();
-        if (!pluginManager.isExecuted()) {
-            pluginManager.addPluginManagerListener(new PluginManagerListener() {
-                public void pluginsMonitored() {
+        if ( !pluginManager.isExecuted() )
+        {
+            Log.debug( "Plugins not yet loaded. Waiting for plugins to be loaded..." );
+            pluginManager.addPluginManagerListener( new PluginManagerListener()
+            {
+                public void pluginsMonitored()
+                {
+                    Log.debug( "Received plugin monitor event! Plugins should now be loaded." );
                     // Stop listening for plugin events
-                    XMPPServer.getInstance().getPluginManager().removePluginManagerListener(this);
+                    XMPPServer.getInstance().getPluginManager().removePluginManagerListener( this );
                     // Start listeners
                     startListeners();
                 }
-            });
+            } );
             return;
         }
 
+        Log.debug( "Starting listeners..." );
         for ( final ConnectionListener listener : getListeners() )
         {
             try
             {
                 listener.start();
+                Log.debug( "Started '{}' (port {}) listener.", listener.getType(), listener.getPort() );
             }
             catch ( RuntimeException ex )
             {
@@ -288,6 +309,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         try
         {
             HttpBindManager.getInstance().start();
+            Log.debug( "Started HTTP client listener." );
         }
         catch ( RuntimeException ex )
         {
@@ -341,6 +363,26 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
             }
         }
         return bindInterface;
+    }
+
+    /**
+     * Returns the specific network interface on which the Openfire administration
+     * console should be configured to listen, or null when no such preference
+     * has been configured.
+     *
+     * @return A network interface or null.
+     * @throws UnknownHostException When the configured network name cannot be resolved.
+     */
+    public InetAddress getAdminConsoleListenAddress() throws UnknownHostException
+    {
+        String acInterfaceName = JiveGlobals.getXMLProperty( "adminConsole.interface" );
+        InetAddress acBindInterface = null;
+        if (acInterfaceName != null) {
+            if (acInterfaceName.trim().length() > 0) {
+                acBindInterface = InetAddress.getByName(acInterfaceName);
+            }
+        }
+        return acBindInterface;
     }
 
     /**

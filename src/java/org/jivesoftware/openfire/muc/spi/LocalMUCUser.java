@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision: 3084 $
- * $Date: 2005-11-15 23:51:41 -0300 (Tue, 15 Nov 2005) $
- *
  * Copyright (C) 2004-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,42 +16,20 @@
 
 package org.jivesoftware.openfire.muc.spi;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 import org.dom4j.Element;
 import org.jivesoftware.openfire.PacketException;
 import org.jivesoftware.openfire.PacketRouter;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
-import org.jivesoftware.openfire.muc.CannotBeInvitedException;
-import org.jivesoftware.openfire.muc.ConflictException;
-import org.jivesoftware.openfire.muc.ForbiddenException;
-import org.jivesoftware.openfire.muc.HistoryRequest;
-import org.jivesoftware.openfire.muc.MUCRole;
-import org.jivesoftware.openfire.muc.MUCRoom;
-import org.jivesoftware.openfire.muc.MUCUser;
-import org.jivesoftware.openfire.muc.MultiUserChatService;
-import org.jivesoftware.openfire.muc.NotAcceptableException;
-import org.jivesoftware.openfire.muc.NotAllowedException;
-import org.jivesoftware.openfire.muc.RegistrationRequiredException;
-import org.jivesoftware.openfire.muc.RoomLockedException;
-import org.jivesoftware.openfire.muc.ServiceUnavailableException;
+import org.jivesoftware.openfire.muc.*;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.util.LocaleUtils;
 import org.jivesoftware.util.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.xmpp.packet.IQ;
-import org.xmpp.packet.JID;
-import org.xmpp.packet.Message;
-import org.xmpp.packet.Packet;
-import org.xmpp.packet.PacketError;
-import org.xmpp.packet.Presence;
+import org.xmpp.packet.*;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Representation of users interacting with the chat service. A user
@@ -223,10 +197,8 @@ public class LocalMUCUser implements MUCUser {
         JID recipient = packet.getTo();
         String group = recipient.getNode();
         if (group == null) {
-            // Ignore packets to the groupchat server
-            // In the future, we'll need to support TYPE_IQ queries to the server for MUC
-            Log.info(LocaleUtils.getLocalizedString("muc.error.not-supported") + " "
-                    + packet.toString());
+            // Packets to the groupchat server. This should not occur (should be handled by MultiUserChatServiceImpl instead)
+            Log.warn( LocaleUtils.getLocalizedString( "muc.error.not-supported" ) + " " + packet.toString() );
         }
         else {
             MUCRole role = roles.get(group);
@@ -371,19 +343,28 @@ public class LocalMUCUser implements MUCUser {
         lastPacketTime = System.currentTimeMillis();
         JID recipient = packet.getTo();
         String group = recipient.getNode();
-        if (group == null) {
-            // Ignore packets to the groupchat server
-            // In the future, we'll need to support TYPE_IQ queries to the server for MUC
-            Log.info(LocaleUtils.getLocalizedString("muc.error.not-supported") + " "
-                    + packet.toString());
+        if (group == null)
+        {
+            // Packets to the groupchat server. This should not occur (should be handled by MultiUserChatServiceImpl instead)
+            if ( packet.isRequest() )
+            {
+                sendErrorPacket( packet, PacketError.Condition.feature_not_implemented );
+            }
+            Log.warn( LocaleUtils.getLocalizedString( "muc.error.not-supported" ) + " " + packet.toString() );
         }
-        else {
+        else
+        {
+            // Packets to a specific node/group/room
             MUCRole role = roles.get(group);
             if (role == null) {
-                // If a non-occupant sends a disco to an address of the form <room@service/nick>,
-                // a MUC service MUST return a <bad-request/> error.
-                // http://xmpp.org/extensions/xep-0045.html#disco-occupant
-                sendErrorPacket(packet, PacketError.Condition.bad_request);
+                Log.debug( "Ignoring stanza received from a non-occupant of '{}': {}", group, packet.toXML() );
+                if ( packet.isRequest() )
+                {
+                    // If a non-occupant sends a disco to an address of the form <room@service/nick>,
+                    // a MUC service MUST return a <bad-request/> error.
+                    // http://xmpp.org/extensions/xep-0045.html#disco-occupant
+                    sendErrorPacket( packet, PacketError.Condition.bad_request );
+                }
             }
             else if (IQ.Type.result == packet.getType()
                     || IQ.Type.error == packet.getType()) {
@@ -394,7 +375,7 @@ public class LocalMUCUser implements MUCUser {
                         // User is sending an IQ result packet to another room occupant
                         role.getChatRoom().sendPrivatePacket(packet, role);
                     }
-                    catch (NotFoundException e) {
+                    catch (NotFoundException | ForbiddenException e) {
                         // Do nothing. No error will be sent to the sender of the IQ result packet
                     }
                 }
@@ -599,6 +580,9 @@ public class LocalMUCUser implements MUCUser {
                     }
                 }
             }
+        } else {
+            // Packets to the groupchat server. This should not occur (should be handled by MultiUserChatServiceImpl instead)
+            Log.warn( LocaleUtils.getLocalizedString( "muc.error.not-supported" ) + " " + packet.toString() );
         }
     }
 

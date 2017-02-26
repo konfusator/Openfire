@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision$
- * $Date: 2006-08-07 21:12:21 -0700 (Mon, 07 Aug 2006) $
- *
  * Copyright (C) 2004-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -55,6 +51,7 @@ import org.jivesoftware.openfire.fastpath.util.TaskEngine;
 import org.jivesoftware.openfire.fastpath.util.WorkgroupUtils;
 import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.net.SASLAuthentication;
+import org.jivesoftware.openfire.sasl.JiveSharedSecretSaslServer;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveGlobals;
@@ -213,8 +210,8 @@ public class WorkgroupManager implements Component {
         // We use a custom SASL mechanism so that web-based customer chats can login without
         // a username or password. However, a shared secret key is still required so that
         // anonymous login doesn't have to be enabled for the whole server.
-        if (!SASLAuthentication.isSharedSecretAllowed()) {
-            SASLAuthentication.setSharedSecretAllowed(true);
+        if (!JiveSharedSecretSaslServer.isSharedSecretAllowed()) {
+            JiveSharedSecretSaslServer.setSharedSecretAllowed( true );
         }
 
         // If the database was just created then create the "demo" user and "demo" workgroup

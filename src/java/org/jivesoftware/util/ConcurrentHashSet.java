@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision$
- * $Date$
- *
  * Copyright (C) 2004-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +18,7 @@ package org.jivesoftware.util;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * This class implements the <tt>Set</tt> interface, backed by a ConcurrentHashMap instance.
@@ -34,7 +31,7 @@ public class ConcurrentHashSet<E> extends AbstractSet<E> implements Set<E>, Clon
         java.io.Serializable
 {
 
-    private transient ConcurrentHashMap<E,Object> map;
+    private transient ConcurrentMap<E,Object> map;
 
     // Dummy value to associate with an Object in the backing Map
     private static final Object PRESENT = new Object();

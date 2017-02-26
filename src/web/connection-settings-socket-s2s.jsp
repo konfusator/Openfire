@@ -4,6 +4,7 @@
 <%@ page import="org.jivesoftware.openfire.spi.ConnectionType" %>
 <%@ page import="org.jivesoftware.openfire.spi.ConnectionListener" %>
 <%@ page import="org.jivesoftware.util.ParamUtils" %>
+<%@ page import="org.jivesoftware.util.CookieUtils" %>
 <%@ page import="java.util.HashMap" %>
 <%@ page import="java.util.Map" %>
 <%@ page import="org.jivesoftware.openfire.server.RemoteServerManager" %>
@@ -20,15 +21,34 @@
     final ConnectionType connectionType = ConnectionType.SOCKET_S2S;
     final ConnectionManagerImpl manager = (ConnectionManagerImpl) XMPPServer.getInstance().getConnectionManager();
 
+    pageContext.setAttribute("permissionPolicy", RemoteServerManager.getPermissionPolicy().toString());
+
     final ConnectionConfiguration plaintextConfiguration  = manager.getListener( connectionType, false ).generateConnectionConfiguration();
 
-    final boolean update = request.getParameter( "update" ) != null;
-    final boolean closeSettings = request.getParameter( "closeSettings" ) != null;
-    final boolean serverAllowed = request.getParameter( "serverAllowed" ) != null;
-    final boolean serverBlocked = request.getParameter( "serverBlocked" ) != null;
-    final String configToDelete = ParamUtils.getParameter( request, "deleteConf" );
+    boolean update = request.getParameter( "update" ) != null;
+    boolean closeSettings = request.getParameter( "closeSettings" ) != null;
+    boolean serverAllowed = request.getParameter( "serverAllowed" ) != null;
+    boolean serverBlocked = request.getParameter( "serverBlocked" ) != null;
+    boolean permissionUpdate = request.getParameter( "permissionUpdate" ) != null;
+    String configToDelete = ParamUtils.getParameter( request, "deleteConf" );
 
     final Map<String, String> errors = new HashMap<>();
+    Cookie csrfCookie = CookieUtils.getCookie(request, "csrf");
+    String csrfParam = ParamUtils.getParameter(request, "csrf");
+
+    if (update || closeSettings || serverAllowed || serverBlocked || permissionUpdate || configToDelete != null) {
+        if (csrfCookie == null || csrfParam == null || !csrfCookie.getValue().equals(csrfParam)) {
+            update = false;
+            closeSettings = false;
+            serverAllowed = false;
+            serverBlocked = false;
+            configToDelete = null;
+            errors.put("csrf", "CSRF Failure!");
+        }
+    }
+    csrfParam = StringUtils.randomString(15);
+    CookieUtils.setCookie(request, response, "csrf", csrfParam, -1);
+    pageContext.setAttribute("csrf", csrfParam);
 
     if ( update && errors.isEmpty() )
     {
@@ -44,6 +64,13 @@
 
         // Log the event
         webManager.logEvent( "Updated connection settings for " + connectionType, "plain: enabled=" + plaintextEnabled + ", port=" + plaintextTcpPort);
+        response.sendRedirect( "connection-settings-socket-s2s.jsp?success=update" );
+    }
+    else if ( permissionUpdate && errors.isEmpty() )
+    {
+        final String permissionFilter = ParamUtils.getParameter( request, "permissionFilter" );
+        RemoteServerManager.setPermissionPolicy(permissionFilter);
+        webManager.logEvent( "Updated s2s permission policy to: " + permissionFilter, null);
         response.sendRedirect( "connection-settings-socket-s2s.jsp?success=update" );
     }
     else if ( closeSettings && errors.isEmpty() )
@@ -262,6 +289,7 @@
 </p>
 
 <form action="connection-settings-socket-s2s.jsp" method="post">
+    <input type="hidden" name="csrf" value="${csrf}">
 
     <fmt:message key="server2server.settings.boxtitle" var="boxtitle"/>
     <admin:contentBox title="${boxtitle}">
@@ -290,6 +318,7 @@
 
 <!-- BEGIN 'Idle Connection Settings' -->
 <form action="connection-settings-socket-s2s.jsp?closeSettings" method="post">
+    <input type="hidden" name="csrf" value="${csrf}">
     <fmt:message key="server2server.settings.close_settings" var="idleTitle"/>
     <admin:contentBox title="${idleTitle}">
         <table cellpadding="3" cellspacing="0" border="0">
@@ -329,10 +358,11 @@
 <fmt:message key="server2server.settings.allowed" var="allowedTitle"/>
 <admin:contentBox title="${allowedTitle}">
     <form action="connection-settings-socket-s2s.jsp" method="post">
+        <input type="hidden" name="csrf" value="${csrf}">
         <table cellpadding="3" cellspacing="0" border="0">
             <tr valign="top">
                 <td width="1%" nowrap>
-                    <input type="radio" name="permissionFilter" value="blacklist" id="rb05" ${'blacklist' eq param.permissionFilter ? 'checked' : ''}>
+                    <input type="radio" name="permissionFilter" value="blacklist" id="rb05" ${permissionPolicy eq 'blacklist'? 'checked' : '' }>
                 </td>
                 <td width="99%">
                     <label for="rb05">
@@ -342,7 +372,7 @@
             </tr>
             <tr valign="top">
                 <td width="1%" nowrap>
-                    <input type="radio" name="permissionFilter" value="whitelist" id="rb06" ${'whitelist' eq param.permissionFilter ? 'checked' : ''}>
+                    <input type="radio" name="permissionFilter" value="whitelist" id="rb06" ${permissionPolicy eq 'whitelist'? 'checked' : ''}>
                 </td>
                 <td width="99%">
                     <label for="rb06">
@@ -357,6 +387,7 @@
     </form>
 
     <form action="connection-settings-socket-s2s.jsp" method="post">
+        <input type="hidden" name="csrf" value="${csrf}">
         <table class="jive-table" cellpadding="0" cellspacing="0" border="0" width="100%">
             <tr>
                 <th width="1%">&nbsp;</th>
@@ -377,7 +408,11 @@
                             <td><c:out value="${server.domain}"/></td>
                             <td><c:out value="${server.remotePort}"/></td>
                             <td align="center" style="border-right:1px #ccc solid;">
-                                <a href="#" onclick="if (confirm('<fmt:message key="server2server.settings.confirm_delete" />')) { location.replace('connection-settings-socket-s2s.jsp?deleteConf=${server.domain}'); } "
+                                <c:url var="deleteurl" value="connection-settings-socket-s2s.jsp">
+                                    <c:param name="deleteConf" value="${server.domain}"/>
+                                    <c:param name="csrf" value="${csrf}"/>
+                                </c:url>
+                                <a href="#" onclick="if (confirm('<fmt:message key="server2server.settings.confirm_delete" />')) { location.replace('${deleteurl}'); } "
                                    title="<fmt:message key="global.click_delete" />"
                                         ><img src="images/delete-16x16.gif" width="16" height="16" border="0" alt=""></a>
                             </td>
@@ -429,7 +464,11 @@
                         <td>${ status.index + 1}</td>
                         <td><c:out value="${server.domain}"/></td>
                         <td align="center" style="border-right:1px #ccc solid;">
-                            <a href="#" onclick="if (confirm('<fmt:message key="server2server.settings.confirm_delete" />')) { location.replace('connection-settings-socket-s2s.jsp?deleteConf=${server.domain}'); } "
+                                <c:url var="deleteurl" value="connection-settings-socket-s2s.jsp">
+                                    <c:param name="deleteConf" value="${server.domain}"/>
+                                    <c:param name="csrf" value="${csrf}"/>
+                                </c:url>
+                            <a href="#" onclick="if (confirm('<fmt:message key="server2server.settings.confirm_delete" />')) { location.replace('${deleteurl}'); } "
                                title="<fmt:message key="global.click_delete" />"
                                     ><img src="images/delete-16x16.gif" width="16" height="16" border="0" alt=""></a>
                         </td>
@@ -440,6 +479,7 @@
     </table>
     <br>
     <form action="connection-settings-socket-s2s.jsp" method="post">
+    <input type="hidden" name="csrf" value="${csrf}">
         <table cellpadding="3" cellspacing="1" border="0" width="100%">
             <tr>
                 <td nowrap width="1%">

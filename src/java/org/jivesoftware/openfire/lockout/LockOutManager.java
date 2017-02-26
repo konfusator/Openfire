@@ -1,7 +1,4 @@
 /**
- * $Revision$
- * $Date$
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -249,7 +246,7 @@ public class LockOutManager {
 				// If group wan't found in cache, load it up and put it there.
 				if (flag == null) {
 					flag = provider.getDisabledStatus(username);
-					lockOutCache.put(username, flag);
+					if (flag != null) lockOutCache.put(username, flag);
 				}
 			}
 		}

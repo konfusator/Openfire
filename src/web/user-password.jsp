@@ -1,6 +1,4 @@
 <%--
-  -	$Revision$
-  -	$Date$
   -
   - Copyright (C) 2004-2008 Jive Software. All rights reserved.
   -
@@ -35,6 +33,17 @@
     String username = ParamUtils.getParameter(request,"username");
     String password = ParamUtils.getParameter(request,"password");
     String passwordConfirm = ParamUtils.getParameter(request,"passwordConfirm");
+    Cookie csrfCookie = CookieUtils.getCookie(request, "csrf");
+    String csrfParam = ParamUtils.getParameter(request, "csrf");
+
+    if (update) {
+        if (csrfCookie == null || csrfParam == null || !csrfCookie.getValue().equals(csrfParam)) {
+            update = false;
+        }
+    }
+    csrfParam = StringUtils.randomString(15);
+    CookieUtils.setCookie(request, response, "csrf", csrfParam, -1);
+    pageContext.setAttribute("csrf", csrfParam);
 
     // Handle a cancel
     if (cancel) {
@@ -133,6 +142,7 @@
 
 <form action="user-password.jsp" name="passform" method="post">
 <input type="hidden" name="username" value="<%=StringUtils.escapeForXML(username) %>">
+    <input type="hidden" name="csrf" value="${csrf}">
 
 <fieldset>
     <legend><fmt:message key="user.password.change" /></legend>

@@ -1,8 +1,4 @@
 /**
- * $RCSfile: IQDiscoInfoHandler.java,v $
- * $Revision: 2859 $
- * $Date: 2005-09-22 02:30:39 -0300 (Thu, 22 Sep 2005) $
- *
  * Copyright (C) 2004-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -78,7 +74,6 @@ public class IQDiscoInfoHandler extends IQHandler implements ClusterEventListene
 
     private List<Element> anonymousUserIdentities = new ArrayList<>();
     private List<Element> registeredUserIdentities = new ArrayList<>();
-    private List<String> userFeatures = new ArrayList<>();
 
     public IQDiscoInfoHandler() {
         super("XMPP Disco Info Handler");
@@ -93,7 +88,6 @@ public class IQDiscoInfoHandler extends IQHandler implements ClusterEventListene
         userIdentity.addAttribute("category", "account");
         userIdentity.addAttribute("type", "registered");
         registeredUserIdentities.add(userIdentity);
-        userFeatures.add(NAMESPACE_DISCO_INFO);
     }
 
     @Override
@@ -428,7 +422,7 @@ public class IQDiscoInfoHandler extends IQHandler implements ClusterEventListene
                     // Redirect the request to the disco info provider of the specified node
                     return serverNodeProviders.get(node).getIdentities(name, node, senderJID);
                 }
-                if (name == null) {
+                if (name != null && name.equals(XMPPServer.getInstance().getServerInfo().getXMPPDomain())) {
                     // Answer identity of the server
                     synchronized (identities) {
                         if (identities.isEmpty()) {
@@ -467,14 +461,8 @@ public class IQDiscoInfoHandler extends IQHandler implements ClusterEventListene
                     // Redirect the request to the disco info provider of the specified node
                     return serverNodeProviders.get(node).getFeatures(name, node, senderJID);
                 }
-                if (name == null) {
-                    // Answer features of the server
-                    return new HashSet<>(serverFeatures.keySet()).iterator();
-                }
-                else {
-                    // Answer features of the user
-                    return userFeatures.iterator();
-                }
+                // Answer features of the server
+                return new HashSet<>(serverFeatures.keySet()).iterator();
             }
 
             @Override

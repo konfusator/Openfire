@@ -1,7 +1,4 @@
 /**
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,6 +44,8 @@ import org.jivesoftware.openfire.net.SASLAuthentication;
 import org.jivesoftware.openfire.net.VirtualConnection;
 import org.jivesoftware.openfire.session.LocalClientSession;
 import org.jivesoftware.openfire.spi.ConnectionConfiguration;
+import org.jivesoftware.openfire.spi.ConnectionManagerImpl;
+import org.jivesoftware.openfire.spi.ConnectionType;
 import org.jivesoftware.util.JiveConstants;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.TaskEngine;
@@ -134,7 +133,7 @@ public class HttpSession extends LocalClientSession {
 
     public HttpSession(PacketDeliverer backupDeliverer, String serverName, InetAddress address,
                        StreamID streamID, long rid, HttpConnection connection, Locale language) {
-        super(serverName, new HttpVirtualConnection(address), streamID, language);
+        super(serverName, new HttpVirtualConnection(address, ConnectionType.SOCKET_C2S), streamID, language);
         this.isClosed = false;
         this.lastActivity = System.currentTimeMillis();
         this.lastRequestID = rid;
@@ -1074,17 +1073,15 @@ public class HttpSession extends LocalClientSession {
 
     protected String createEmptyBody(boolean terminate)
     {
-        final Element body = DocumentHelper.createElement("body");
+        final Element body = DocumentHelper.createElement( QName.get( "body", "http://jabber.org/protocol/httpbind" ) );
         if (terminate) { body.addAttribute("type", "terminate"); }
-        body.addNamespace("", "http://jabber.org/protocol/httpbind");
         body.addAttribute("ack", String.valueOf(getLastAcknowledged()));
         return body.asXML();
     }
 
     private String createSessionRestartResponse()
     {
-        final Element response = DocumentHelper.createElement("body");
-        response.addNamespace("", "http://jabber.org/protocol/httpbind");
+        final Element response = DocumentHelper.createElement( QName.get( "body", "http://jabber.org/protocol/httpbind" ) );
         response.addNamespace("stream", "http://etherx.jabber.org/streams");
 
         final Element features = response.addElement("stream:features");
@@ -1103,9 +1100,16 @@ public class HttpSession extends LocalClientSession {
 
         private InetAddress address;
         private ConnectionConfiguration configuration;
+        private ConnectionType connectionType;
 
         public HttpVirtualConnection(InetAddress address) {
             this.address = address;
+            this.connectionType = ConnectionType.SOCKET_C2S;
+        }
+
+        public HttpVirtualConnection(InetAddress address, ConnectionType connectionType) {
+            this.address = address;
+            this.connectionType = connectionType;
         }
 
         @Override
@@ -1145,7 +1149,11 @@ public class HttpSession extends LocalClientSession {
 
         @Override
         public ConnectionConfiguration getConfiguration() {
-            return session.getConnection().getConfiguration();
+            if (configuration == null) {
+            	final ConnectionManagerImpl connectionManager = ((ConnectionManagerImpl) XMPPServer.getInstance().getConnectionManager());
+                configuration = connectionManager.getListener( connectionType, true ).generateConnectionConfiguration();
+            }
+            return configuration;
         }
 
         @Override
@@ -1154,7 +1162,7 @@ public class HttpSession extends LocalClientSession {
         }
     }
 
-    private class Deliverable {
+    static class Deliverable {
         private final String text;
         private final Collection<String> packets;
 
@@ -1171,7 +1179,10 @@ public class HttpSession extends LocalClientSession {
             	if (Namespace.NO_NAMESPACE.equals(packet.getElement().getNamespace())) {
             		// use string-based operation here to avoid cascading xmlns wonkery
             		StringBuilder packetXml = new StringBuilder(packet.toXML());
-            		packetXml.insert(packetXml.indexOf(" "), " xmlns=\"jabber:client\"");
+                    final int noslash = packetXml.indexOf( ">" );
+                    final int slash = packetXml.indexOf( "/>" );
+                    final int insertAt = ( noslash - 1 == slash ? slash : noslash );
+            		packetXml.insert( insertAt, " xmlns=\"jabber:client\"");
             		this.packets.add(packetXml.toString());
             	} else {
             		this.packets.add(packet.toXML());

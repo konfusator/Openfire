@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision: 1701 $
- * $Date: 2005-07-26 02:23:45 -0300 (Tue, 26 Jul 2005) $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -116,7 +112,7 @@ public class IQDiscoItemsHandler extends IQHandler implements ServerFeaturesProv
         // DiscoItemsProvider responsibility to provide the items associated with the JID's name  
         // together with any possible requested node.
         DiscoItemsProvider itemsProvider = getProvider(packet.getTo() == null ?
-                XMPPServer.getInstance().getServerInfo().getXMPPDomain() : packet.getTo().getDomain());
+                packet.getFrom().getNode() : packet.getTo().getNode() != null ? packet.getTo().getNode() : packet.getTo().getDomain());
         if (itemsProvider != null) {
             // Get the JID's name
             String name = packet.getTo() == null ? null : packet.getTo().getNode();

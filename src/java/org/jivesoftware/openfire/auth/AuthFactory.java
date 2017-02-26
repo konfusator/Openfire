@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision: 2814 $
- * $Date: 2005-09-13 16:41:10 -0300 (Tue, 13 Sep 2005) $
- *
  * Copyright (C) 2004-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +20,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 
+import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.lockout.LockOutManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.Blowfish;
@@ -147,27 +144,6 @@ public class AuthFactory {
     }
 
     /**
-     * Returns true if the currently installed {@link AuthProvider} supports authentication
-     * using plain-text passwords according to JEP-0078. Plain-text authentication is
-     * not secure and should generally only be used over a TLS/SSL connection.
-     *
-     * @return true if plain text password authentication is supported.
-     */
-    public static boolean isPlainSupported() {
-        return authProvider.isPlainSupported();
-    }
-
-    /**
-     * Returns true if the currently installed {@link AuthProvider} supports
-     * digest authentication according to JEP-0078.
-     *
-     * @return true if digest authentication is supported.
-     */
-    public static boolean isDigestSupported() {
-        return authProvider.isDigestSupported();
-    }
-
-    /**
      * Returns the user's password. This method will throw an UnsupportedOperationException
      * if this operation is not supported by the backend user store.
      *
@@ -215,30 +191,6 @@ public class AuthFactory {
             throw new UnauthorizedException();
         }
         authProvider.authenticate(username, password);
-        return new AuthToken(username);
-    }
-
-    /**
-     * Authenticates a user with a username, token, and digest and returns an AuthToken.
-     * The digest should be generated using the {@link #createDigest(String, String)} method.
-     * If the username and digest do not match the record of any user in the system, the
-     * method throws an UnauthorizedException.
-     *
-     * @param username the username.
-     * @param token the token that was used with plain-text password to generate the digest.
-     * @param digest the digest generated from plain-text password and unique token.
-     * @return an AuthToken token if the username and digest are correct for the user's
-     *      password and given token.
-     * @throws UnauthorizedException if the username and password do not match any
-     *      existing user or the account is locked out.
-     */
-    public static AuthToken authenticate(String username, String token, String digest)
-            throws UnauthorizedException, ConnectionException, InternalUnauthenticatedException {
-        if (LockOutManager.getInstance().isAccountDisabled(username)) {
-            LockOutManager.getInstance().recordFailedLogin(username);
-            throw new UnauthorizedException();
-        }
-        authProvider.authenticate(username, token, digest);
         return new AuthToken(username);
     }
 
@@ -336,5 +288,18 @@ public class AuthFactory {
     public static boolean supportsScram() {
         // TODO Auto-generated method stub
         return authProvider.isScramSupported();
+    }
+
+    public static String getSalt(String username) throws UnsupportedOperationException, UserNotFoundException {
+        return authProvider.getSalt(username);
+    }
+    public static int getIterations(String username) throws UnsupportedOperationException, UserNotFoundException {
+        return authProvider.getIterations(username);
+    }
+    public static String getServerKey(String username) throws UnsupportedOperationException, UserNotFoundException {
+        return authProvider.getServerKey(username);
+    }
+    public static String getStoredKey(String username) throws UnsupportedOperationException, UserNotFoundException {
+        return authProvider.getStoredKey(username);
     }
 }

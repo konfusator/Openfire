@@ -1,7 +1,4 @@
 /**
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2007-2009 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -99,6 +96,8 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
     private static HazelcastInstance hazelcast = null;
     private static Cluster cluster = null;
     private ClusterListener clusterListener;
+    private String lifecycleListener;
+    private String membershipListener;
 
     /**
      * Keeps that running state. Initial state is stopped.
@@ -141,8 +140,8 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
 	            XMPPServer.getInstance().setNodeID(NodeID.getInstance(getClusterMemberID()));
 	            // CacheFactory is now using clustered caches. We can add our listeners.
 	            clusterListener = new ClusterListener(cluster);
-	            hazelcast.getLifecycleService().addLifecycleListener(clusterListener);
-	            cluster.addMembershipListener(clusterListener);
+	            lifecycleListener = hazelcast.getLifecycleService().addLifecycleListener(clusterListener);
+	            membershipListener = cluster.addMembershipListener(clusterListener);
 	            break;
 	        } catch (Exception e) {
 	            if (retry < CLUSTER_STARTUP_RETRY_COUNT) {
@@ -172,13 +171,20 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
         // Stop the cluster
         Hazelcast.shutdownAll();
         cluster = null;
-        // Wait until the server has updated its internal state
-        while (!clusterListener.isDone()) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
+        if (clusterListener != null) {
+	        // Wait until the server has updated its internal state
+	        while (!clusterListener.isDone()) {
+	            try {
+	                Thread.sleep(100);
+	            } catch (InterruptedException e) {
+	                // Ignore
+	            }
+	        }
+	        hazelcast.getLifecycleService().removeLifecycleListener(lifecycleListener);
+	        cluster.removeMembershipListener(membershipListener);
+	        lifecycleListener = null;
+	        membershipListener = null;
+	        clusterListener = null;
         }
         // Reset the node ID
         XMPPServer.getInstance().setNodeID(null);
@@ -225,7 +231,7 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
     }
 
     public Collection<ClusterNodeInfo> getClusterNodesInfo() {
-    	return clusterListener.getClusterNodesInfo();
+    	return clusterListener == null ? Collections.EMPTY_LIST : clusterListener.getClusterNodesInfo();
     }
 
     public int getMaxClusterNodes() {

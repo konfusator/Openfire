@@ -1,6 +1,4 @@
 <%--
-  -	$Revision$
-  -	$Date$
   -
   - Copyright (C) 2004-2008 Jive Software. All rights reserved.
   -
@@ -72,6 +70,21 @@
         return;
     }
 
+    Map<String, String> errors = new HashMap<String, String>();
+    Cookie csrfCookie = CookieUtils.getCookie(request, "csrf");
+    String csrfParam = ParamUtils.getParameter(request, "csrf");
+
+    if (encrypt || save || delete) {
+        if (csrfCookie == null || csrfParam == null || !csrfCookie.getValue().equals(csrfParam)) {
+            encrypt = false;
+            save = false;
+            delete = false;
+            errors.put("csrf", "CSRF Failure!");
+        }
+    }
+    csrfParam = StringUtils.randomString(15);
+    CookieUtils.setCookie(request, response, "csrf", csrfParam, -1);
+    pageContext.setAttribute("csrf", csrfParam);
     if (delete) {
         if (propName != null) {
             JiveGlobals.deleteProperty(propName);
@@ -82,7 +95,6 @@
         }
     }
 
-    Map<String, String> errors = new HashMap<String, String>();
     if (save) {
         if (propName == null || "".equals(propName.trim()) || propName.startsWith("\"")) {
             errors.put("propName","");
@@ -254,16 +266,24 @@ function dodelete(propName) {
 </script>
 
 <form action="server-properties.jsp" method="post" name="propform">
+<input type="hidden" name="csrf" value="${csrf}">
 <input type="hidden" name="edit" value="">
 <input type="hidden" name="encrypt" value="">
 <input type="hidden" name="del" value="">
 <input type="hidden" name="propName" value="">
 
 <style type="text/css">
-.hidebox {
+.nameColumn {
     text-overflow : ellipsis;
     overflow : hidden;
     white-space : nowrap;
+    max-width : 200px;
+}
+.valueColumn {
+    text-overflow : ellipsis;
+    overflow : hidden;
+    white-space : nowrap;
+    max-width : 300px;
 }
 </style>
 
@@ -296,22 +316,14 @@ function dodelete(propName) {
     %>
     <tr class="<%= (n.equals(propName) ? "hilite" : "") %>">
 
-        <td>
-            <div class="hidebox" style="width:200px;">
-                <span title="<%= StringUtils.escapeForXML(n) %>">
-                <%= StringUtils.escapeHTMLTags(n) %>
-                </span>
-            </div>
-        </td>
-        <td>
-            <div class="hidebox" style="width:300px;">
-                <% if (JiveGlobals.isPropertyEncrypted(n) || 
+        <td class="nameColumn"><%= StringUtils.escapeHTMLTags(n) %></td>
+        <td class="valueColumn">
+                <% if (JiveGlobals.isPropertyEncrypted(n) ||
                        JiveGlobals.isPropertySensitive(n)) { %>
                 <span style="color:#999;"><i>hidden</i></span>
                 <% } else { %>
-                <span title="<%= ("".equals(v) ? "&nbsp;" : v) %>"><%= ("".equals(v) ? "&nbsp;" : v) %></span>
+                <%= ("".equals(v) ? "&nbsp;" : v) %>
                 <% } %>
-            </div>
         </td>
         <td align="center"><a href="#" onclick="doedit('<%= StringUtils.replace(StringUtils.escapeHTMLTags(n),"'","''") %>');"
                 ><img src="images/edit-16x16.gif" width="16" height="16"
@@ -346,6 +358,7 @@ function dodelete(propName) {
 
 <a name="edit"></a>
 <form action="server-properties.jsp" method="post" name="editform">
+<input type="hidden" name="csrf" value="${csrf}">
 
 <div class="jive-table">
 <table cellpadding="0" cellspacing="0" border="0" width="100%">

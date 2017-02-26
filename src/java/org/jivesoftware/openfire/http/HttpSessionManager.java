@@ -1,7 +1,4 @@
 /**
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -317,8 +314,7 @@ public class HttpSessionManager {
     }
 
     private static String createSessionCreationResponse(HttpSession session) throws DocumentException {
-        Element response = DocumentHelper.createElement("body");
-        response.addNamespace("", "http://jabber.org/protocol/httpbind");
+        Element response = DocumentHelper.createElement( QName.get( "body", "http://jabber.org/protocol/httpbind" ) );
         response.addNamespace("stream", "http://etherx.jabber.org/streams");
         response.addAttribute("from", session.getServerName());
         response.addAttribute("authid", session.getStreamID().getID());

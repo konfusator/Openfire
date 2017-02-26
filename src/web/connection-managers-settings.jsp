@@ -1,7 +1,4 @@
 <%--
-  -	$RCSfile$
-  -	$Revision: $
-  -	$Date: $
   -
   - Copyright (C) 2005-2008 Jive Software. All rights reserved.
   -
@@ -27,6 +24,7 @@
                  org.jivesoftware.openfire.multiplex.ConnectionMultiplexerManager,
                  org.jivesoftware.openfire.session.ConnectionMultiplexerSession,
                  org.jivesoftware.util.ParamUtils,
+                 org.jivesoftware.util.CookieUtils,
                  org.jivesoftware.util.StringUtils"
     errorPage="error.jsp"
 %>
@@ -58,6 +56,18 @@
 
     // Update the session kick policy if requested
     Map<String, String> errors = new HashMap<String, String>();
+    Cookie csrfCookie = CookieUtils.getCookie(request, "csrf");
+    String csrfParam = ParamUtils.getParameter(request, "csrf");
+
+    if (update) {
+        if (csrfCookie == null || csrfParam == null || !csrfCookie.getValue().equals(csrfParam)) {
+            update = false;
+            errors.put("csrf", "CSRF Failure!");
+        }
+    }
+    csrfParam = StringUtils.randomString(15);
+    CookieUtils.setCookie(request, response, "csrf", csrfParam, -1);
+    pageContext.setAttribute("csrf", csrfParam);
     if (update) {
         // Validate params
         if (managerEnabled) {
@@ -167,6 +177,7 @@
 <%  } %>
 
 <form action="connection-managers-settings.jsp" method="post">
+    <input type="hidden" name="csrf" value="${csrf}">
 
 <fieldset>
     <div>

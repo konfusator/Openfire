@@ -1,7 +1,4 @@
 <%--
-  -	$RCSfile$
-  -	$Revision: $
-  -	$Date: 2007-09-21 $
   -
   - Copyright (C) 2005-2008 Jive Software. All rights reserved.
   -
@@ -31,6 +28,8 @@
 <%@ page import="org.jivesoftware.util.JiveGlobals" %>
 <%@ page import="org.jivesoftware.util.Log" %>
 <%@ page import="org.jivesoftware.util.ParamUtils" %>
+<%@ page import="org.jivesoftware.util.CookieUtils" %>
+<%@ page import="org.jivesoftware.util.StringUtils" %>
 <%@ page import="org.jivesoftware.util.cache.CacheFactory" %>
 <%@ page import="java.text.DecimalFormat" %>
 <%@ page import="java.util.Arrays" %>
@@ -60,6 +59,17 @@
     boolean clusteringEnabled = ParamUtils.getBooleanParameter(request, "clusteringEnabled");
     boolean updateSucess = false;
 
+    Cookie csrfCookie = CookieUtils.getCookie(request, "csrf");
+    String csrfParam = ParamUtils.getParameter(request, "csrf");
+
+    if (update) {
+        if (csrfCookie == null || csrfParam == null || !csrfCookie.getValue().equals(csrfParam)) {
+            update = false;
+        }
+    }
+    csrfParam = StringUtils.randomString(15);
+    CookieUtils.setCookie(request, response, "csrf", csrfParam, -1);
+    pageContext.setAttribute("csrf", csrfParam);
     if (update) {
         if (!clusteringEnabled) {
             ClusterManager.setClusteringEnabled(false);
@@ -187,6 +197,7 @@
 
 <!-- BEGIN 'Clustering Enabled' -->
 <form action="system-clustering.jsp" method="post">
+        <input type="hidden" name="csrf" value="${csrf}">
 	<div class="jive-contentBoxHeader">
 		<fmt:message key="system.clustering.enabled.legend" />
 	</div>

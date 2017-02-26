@@ -1,7 +1,4 @@
 /**
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -99,7 +96,7 @@ public class GetListGroups extends AdHocCommand {
             }
         }
         int maxItems = 100000;
-        if (max_items != null && "none".equals(max_items)) {
+        if (max_items != null && !"none".equals(max_items)) {
             try {
                 maxItems = Integer.parseInt(max_items);
             }

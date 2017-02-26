@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision: 1765 $
- * $Date: 2005-08-10 22:37:59 -0700 (Wed, 10 Aug 2005) $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -183,23 +179,6 @@ public class NativeAuthProvider implements AuthProvider {
     }
 
     @Override
-    public void authenticate(String username, String token, String digest)
-            throws UnauthorizedException
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean isPlainSupported() {
-        return true;
-    }
-
-    @Override
-    public boolean isDigestSupported() {
-        return false;
-    }
-
-    @Override
     public String getPassword(String username)
             throws UserNotFoundException, UnsupportedOperationException
     {
@@ -220,5 +199,25 @@ public class NativeAuthProvider implements AuthProvider {
     public boolean isScramSupported() {
         // TODO Auto-generated method stub
         return false;
+    }
+
+    @Override
+    public String getSalt(String username) throws UnsupportedOperationException, UserNotFoundException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getIterations(String username) throws UnsupportedOperationException, UserNotFoundException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getServerKey(String username) throws UnsupportedOperationException, UserNotFoundException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getStoredKey(String username) throws UnsupportedOperationException, UserNotFoundException {
+        throw new UnsupportedOperationException();
     }
 }

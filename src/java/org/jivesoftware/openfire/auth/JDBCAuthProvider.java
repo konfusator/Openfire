@@ -1,7 +1,4 @@
 /**
- * $Revision: 1116 $
- * $Date: 2005-03-10 20:18:08 -0300 (Thu, 10 Mar 2005) $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +17,8 @@
 package org.jivesoftware.openfire.auth;
 
 import java.security.SecureRandom;
+import java.security.MessageDigest;
+import java.security.Security;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -33,6 +32,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.util.encoders.Hex;
 
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
@@ -99,6 +100,7 @@ import org.slf4j.LoggerFactory;
  *      <li>{@link PasswordType#sha256 sha256}
  *      <li>{@link PasswordType#sha512 sha512}
  *      <li>{@link PasswordType#bcrypt bcrypt}
+ *      <li>{@link PasswordType#nt nt}
  *  </ul>
  *
  * @author David Snopek
@@ -156,6 +158,9 @@ public class JDBCAuthProvider implements AuthProvider, PropertyEventListener {
         setPasswordTypes(JiveGlobals.getProperty("jdbcAuthProvider.passwordType", "plain"));
         bcryptCost = JiveGlobals.getIntProperty("jdbcAuthProvider.bcrypt.cost", -1);
         PropertyEventDispatcher.addListener(this);
+        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+            java.security.Security.addProvider(new BouncyCastleProvider());
+        }
     }
     
     private void setPasswordTypes(String passwordTypeProperty){
@@ -252,61 +257,22 @@ public class JDBCAuthProvider implements AuthProvider, PropertyEventListener {
                 new SecureRandom().nextBytes(salt);
                 int cost = (bcryptCost < 4 || bcryptCost > 31) ? DEFAULT_BCRYPT_COST : bcryptCost;
                 return OpenBSDBCrypt.generate(password.toCharArray(), salt, cost);
+            case nt:
+                byte[] digestBytes;
+                byte[] utf16leBytes = null;
+                try {
+                  MessageDigest md = MessageDigest.getInstance("MD4");
+                  utf16leBytes = password.getBytes("UTF-16LE");
+                  digestBytes = md.digest(utf16leBytes);
+                  return new String(new String(Hex.encode(digestBytes)));
+                }
+                catch (Exception e) {
+                  return null;
+                }
             case plain:
             default:
                 return password;
         }
-    }
-        
-    @Override
-    public void authenticate(String username, String token, String digest)
-            throws UnauthorizedException
-    {
-        if (passwordTypes.size() != 1 || passwordTypes.get(0) != PasswordType.plain) {
-            throw new UnsupportedOperationException("Digest authentication not supported for "
-                    + "password type " + passwordTypes.get(0));
-        }
-        if (username == null || token == null || digest == null) {
-            throw new UnauthorizedException();
-        }
-        username = username.trim().toLowerCase();
-        if (username.contains("@")) {
-            // Check that the specified domain matches the server's domain
-            int index = username.indexOf("@");
-            String domain = username.substring(index + 1);
-            if (domain.equals(XMPPServer.getInstance().getServerInfo().getXMPPDomain())) {
-                username = username.substring(0, index);
-            } else {
-                // Unknown domain. Return authentication failed.
-                throw new UnauthorizedException();
-            }
-        }
-        String password;
-        try {
-            password = getPasswordValue(username);
-        }
-        catch (UserNotFoundException unfe) {
-            throw new UnauthorizedException();
-        }
-        String anticipatedDigest = AuthFactory.createDigest(token, password);
-        if (!digest.equalsIgnoreCase(anticipatedDigest)) {
-            throw new UnauthorizedException();
-        }
-
-        // Got this far, so the user must be authorized.
-        createUser(username);
-    }
-
-    @Override
-    public boolean isPlainSupported() {
-        // If the auth SQL is defined, plain text authentication is supported.
-        return (passwordSQL != null);
-    }
-
-    @Override
-    public boolean isDigestSupported() {
-        // The auth SQL must be defined and the password type is supported.
-        return (passwordSQL != null && passwordTypes.size() == 1 && passwordTypes.get(0) == PasswordType.plain);
     }
 
     @Override
@@ -467,7 +433,12 @@ public class JDBCAuthProvider implements AuthProvider, PropertyEventListener {
         /**
           * The password is stored as a bcrypt hash.
           */
-        bcrypt;
+        bcrypt,
+
+        /**
+          * The password is stored as an nt hash.
+          */
+        nt;
    }
 
     /**
@@ -499,7 +470,27 @@ public class JDBCAuthProvider implements AuthProvider, PropertyEventListener {
         // TODO Auto-generated method stub
         return false;
     }
-    
+
+    @Override
+    public String getSalt(String username) throws UnsupportedOperationException, UserNotFoundException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getIterations(String username) throws UnsupportedOperationException, UserNotFoundException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getServerKey(String username) throws UnsupportedOperationException, UserNotFoundException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getStoredKey(String username) throws UnsupportedOperationException, UserNotFoundException {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * Support a subset of JDBCAuthProvider properties when updated via REST,
      * web GUI, or other sources. Provider strings (and related settings) must

@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision: 2698 $
- * $Date: 2005-08-19 15:28:16 -0300 (Fri, 19 Aug 2005) $
- *
  * Copyright (C) 2004-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -2234,6 +2230,21 @@ public class LdapManager {
      *         search filter string.
      */
     public static String sanitizeSearchFilter(final String value) {
+      return sanitizeSearchFilter(value, false);
+      
+    }
+      
+    /**
+     * Escapes any special chars (RFC 4515) from a string representing
+     * a search filter assertion value, with the exception of the '*' wildcard sign
+     *
+     * @param value The input string.
+     *
+     * @return A assertion value string ready for insertion into a 
+     *         search filter string.
+     */
+    public static String sanitizeSearchFilter(final String value, boolean acceptWildcard ) {
+
 
             StringBuilder result = new StringBuilder();
 
@@ -2246,7 +2257,7 @@ public class LdapManager {
 	            	case '&':		result.append("\\26");	break;
 	            	case '(':		result.append("\\28");	break;
 	            	case ')':		result.append("\\29");	break;
-	            	case '*':		result.append("\\2a");	break;
+	            	case '*':		result.append(acceptWildcard ? "*" : "\\2a");	break;
 	            	case ':':		result.append("\\3a");	break;
 	            	case '\\':		result.append("\\5c");	break;
 	            	case '|':		result.append("\\7c");	break;

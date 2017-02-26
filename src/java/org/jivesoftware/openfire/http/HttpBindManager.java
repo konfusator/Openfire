@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,9 +26,9 @@ import javax.servlet.Filter;
 import javax.servlet.FilterConfig;
 import javax.servlet.ServletException;
 
+import org.apache.jasper.servlet.JasperInitializer;
 import org.apache.tomcat.InstanceManager;
 import org.apache.tomcat.SimpleInstanceManager;
-import org.eclipse.jetty.apache.jsp.JettyJasperInitializer;
 import org.eclipse.jetty.http.HttpMethod;
 import org.eclipse.jetty.plus.annotation.ContainerInitializer;
 import org.eclipse.jetty.server.Connector;
@@ -58,9 +54,7 @@ import org.eclipse.jetty.webapp.WebAppContext;
 import org.jivesoftware.openfire.Connection;
 import org.jivesoftware.openfire.JMXManager;
 import org.jivesoftware.openfire.XMPPServer;
-import org.jivesoftware.openfire.keystore.CertificateStoreManager;
 import org.jivesoftware.openfire.keystore.IdentityStore;
-import org.jivesoftware.openfire.session.ConnectionSettings;
 import org.jivesoftware.openfire.spi.ConnectionConfiguration;
 import org.jivesoftware.openfire.spi.ConnectionManagerImpl;
 import org.jivesoftware.openfire.spi.ConnectionType;
@@ -74,7 +68,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- *
  */
 public final class HttpBindManager {
 
@@ -155,9 +148,6 @@ public final class HttpBindManager {
     }
 
     private HttpBindManager() {
-        // JSP 2.0 uses commons-logging, so also override that implementation.
-        System.setProperty("org.apache.commons.logging.LogFactory", "org.jivesoftware.util.log.util.CommonsLogFactory");
-
         JiveGlobals.migrateProperty(HTTP_BIND_ENABLED);
         JiveGlobals.migrateProperty(HTTP_BIND_PORT);
         JiveGlobals.migrateProperty(HTTP_BIND_SECURE_PORT);
@@ -544,9 +534,10 @@ public final class HttpBindManager {
         ServletContextHandler context = new ServletContextHandler(contexts, boshPath, ServletContextHandler.SESSIONS);
         // Ensure the JSP engine is initialized correctly (in order to be able to cope with Tomcat/Jasper precompiled JSPs).
         final List<ContainerInitializer> initializers = new ArrayList<>();
-        initializers.add(new ContainerInitializer(new JettyJasperInitializer(), null));
+        initializers.add(new ContainerInitializer(new JasperInitializer(), null));
         context.setAttribute("org.eclipse.jetty.containerInitializers", initializers);
         context.setAttribute(InstanceManager.class.getName(), new SimpleInstanceManager());
+        context.setAllowNullPathInfo(true);
         context.addServlet(new ServletHolder(new HttpBindServlet()),"/*");
         if (isHttpCompressionEnabled()) {
 	        Filter gzipFilter = new AsyncGzipFilter() {
@@ -575,9 +566,10 @@ public final class HttpBindManager {
         ServletContextHandler context = new ServletContextHandler(contexts, crossPath, ServletContextHandler.SESSIONS);
         // Ensure the JSP engine is initialized correctly (in order to be able to cope with Tomcat/Jasper precompiled JSPs).
         final List<ContainerInitializer> initializers = new ArrayList<>();
-        initializers.add(new ContainerInitializer(new JettyJasperInitializer(), null));
+        initializers.add(new ContainerInitializer(new JasperInitializer(), null));
         context.setAttribute("org.eclipse.jetty.containerInitializers", initializers);
         context.setAttribute(InstanceManager.class.getName(), new SimpleInstanceManager());
+        context.setAllowNullPathInfo(true);
         context.addServlet(new ServletHolder(new FlashCrossDomainServlet()),"");
     }
 

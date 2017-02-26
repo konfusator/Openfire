@@ -1,7 +1,5 @@
 
 <%--
-  -	$Revision$
-  -	$Date$
   -
   - Copyright (C) 2004-2008 Jive Software. All rights reserved.
   -
@@ -20,6 +18,7 @@
 
 <%@ page import="org.jivesoftware.util.ParamUtils,
                  org.jivesoftware.util.StringUtils,
+                 org.jivesoftware.util.CookieUtils,
                  org.jivesoftware.openfire.SessionManager,
                  org.jivesoftware.openfire.session.ClientSession,
                  org.jivesoftware.openfire.user.User,
@@ -71,6 +70,18 @@
 
     // Handle the request to send a message:
     Map<String,String> errors = new HashMap<String,String>();
+    Cookie csrfCookie = CookieUtils.getCookie(request, "csrf");
+    String csrfParam = ParamUtils.getParameter(request, "csrf");
+
+    if (send) {
+        if (csrfCookie == null || csrfParam == null || !csrfCookie.getValue().equals(csrfParam)) {
+            send = false;
+            errors.put("csrf", "CSRF Failure!");
+        }
+    }
+    csrfParam = StringUtils.randomString(15);
+    CookieUtils.setCookie(request, response, "csrf", csrfParam, -1);
+    pageContext.setAttribute("csrf", csrfParam);
     if (send) {
         // Validate the message and jid
         if (jid == null && !sendToAll && user != null) {
@@ -169,6 +180,7 @@ function updateSelect(el) {
 </script>
 
 <form action="user-message.jsp" method="post" name="f">
+        <input type="hidden" name="csrf" value="${csrf}">
 <% if(username != null){ %>
 <input type="hidden" name="username" value="<%= StringUtils.escapeForXML(username) %>">
 <% } %>

@@ -1,7 +1,4 @@
 /**
- * $Revision: 3034 $
- * $Date: 2005-11-04 21:02:33 -0300 (Fri, 04 Nov 2005) $
- *
  * Copyright (C) 2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -315,7 +312,7 @@ public class Conversation implements Externalizable {
 				JID toJID = new JID(rs.getString(3));
 				String toJIDResource = rs.getString(4);
 				if (toJIDResource != null && !"".equals(toJIDResource)) {
-					toJID = new JID(rs.getString(1) + "/" + toJIDResource);
+					toJID = new JID(rs.getString(3) + "/" + toJIDResource);
 				}
 				Date date = new Date(rs.getLong(5));
 				String body = DbConnectionManager.getLargeTextField(rs, 6);

@@ -1,7 +1,4 @@
 /**
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2007-2009 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -74,8 +71,7 @@ public abstract class RemoteSession implements Session {
         // Get it once and cache it since it never changes
         if (streamID == null) {
             ClusterTask task = getRemoteSessionTask(RemoteSessionTask.Operation.getStreamID);
-            String id = (String) doSynchronousClusterTask(task);
-            streamID = new BasicStreamID(id);
+            streamID = (StreamID) doSynchronousClusterTask(task);
         }
         return streamID;
     }
@@ -179,29 +175,5 @@ public abstract class RemoteSession implements Session {
      */
     protected void doClusterTask(ClusterTask task) {
         CacheFactory.doClusterTask(task, nodeID);
-    }
-
-    /**
-     * Simple implementation of the StreamID interface to hold the stream ID of
-     * the surrogated session.
-     */
-    protected static class BasicStreamID implements StreamID {
-        String id;
-
-        public BasicStreamID(String id) {
-            this.id = id;
-        }
-
-        public String getID() {
-            return id;
-        }
-
-        public String toString() {
-            return id;
-        }
-
-        public int hashCode() {
-            return id.hashCode();
-        }
     }
 }

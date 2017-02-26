@@ -1,8 +1,4 @@
 /**
- * $RCSfile: $
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +17,7 @@
 package org.jivesoftware.openfire.multiplex;
 
 import org.dom4j.Element;
+import org.jivesoftware.openfire.StreamID;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.net.VirtualConnection;
 import org.jivesoftware.openfire.session.ConnectionMultiplexerSession;
@@ -72,7 +69,7 @@ public class ClientSessionConnection extends VirtualConnection {
      */
     @Override
     public void deliver(Packet packet) {
-        String streamID = session.getStreamID().getID();
+        StreamID streamID = session.getStreamID();
         ConnectionMultiplexerSession multiplexerSession =
                 multiplexerManager.getMultiplexerSession(connectionManagerName,streamID);
         if (multiplexerSession != null) {
@@ -100,7 +97,7 @@ public class ClientSessionConnection extends VirtualConnection {
      */
     @Override
     public void deliverRawText(String text) {
-        String streamID = session.getStreamID().getID();
+        StreamID streamID = session.getStreamID();
         ConnectionMultiplexerSession multiplexerSession =
                 multiplexerManager.getMultiplexerSession(connectionManagerName,streamID);
         if (multiplexerSession != null) {
@@ -108,7 +105,7 @@ public class ClientSessionConnection extends VirtualConnection {
             StringBuilder sb = new StringBuilder(200 + text.length());
             sb.append("<route from=\"").append(serverName);
             sb.append("\" to=\"").append(connectionManagerName);
-            sb.append("\" streamid=\"").append(streamID).append("\">");
+            sb.append("\" streamid=\"").append(streamID.getID()).append("\">");
             sb.append(text);
             sb.append("</route>");
             // Deliver the wrapped stanza
@@ -176,7 +173,7 @@ public class ClientSessionConnection extends VirtualConnection {
     @Override
 	public void closeVirtualConnection() {
         // Figure out who requested the connection to be closed
-        String streamID = session.getStreamID().getID();
+        StreamID streamID = session.getStreamID();
         if (multiplexerManager.getClientSession(connectionManagerName, streamID) == null) {
             // Client or Connection manager requested to close the session
             // Do nothing since it has already been removed and closed
@@ -192,7 +189,7 @@ public class ClientSessionConnection extends VirtualConnection {
                 closeRequest.setTo(connectionManagerName);
                 Element child = closeRequest.setChildElement("session",
                         "http://jabber.org/protocol/connectionmanager");
-                child.addAttribute("id", streamID);
+                child.addAttribute("id", streamID.getID());
                 child.addElement("close");
                 multiplexerSession.process(closeRequest);
             }

@@ -1,7 +1,4 @@
 /**
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,6 +32,7 @@ import org.apache.commons.lang.StringEscapeUtils;
 import org.dom4j.Document;
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
+import org.dom4j.QName;
 import org.dom4j.io.XMPPPacketReader;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.net.MXParser;
@@ -148,7 +146,12 @@ public class HttpBindServlet extends HttpServlet {
         final AsyncContext context = request.startAsync();
 
         // Asynchronously reads the POSTed input, then triggers #processContent.
-        request.getInputStream().setReadListener(new ReadListenerImpl(context));
+        try {
+            request.getInputStream().setReadListener(new ReadListenerImpl(context));
+        } catch (IllegalStateException e) {
+            Log.warn("Error when setting read listener", e);
+            context.complete();
+        }
     }
 
     protected void processContent(AsyncContext context, String content)
@@ -348,8 +351,7 @@ public class HttpBindServlet extends HttpServlet {
     }
 
     protected static String createErrorBody(String type, String condition) {
-        final Element body = DocumentHelper.createElement("body");
-        body.addNamespace("", "http://jabber.org/protocol/httpbind");
+        final Element body = DocumentHelper.createElement( QName.get( "body", "http://jabber.org/protocol/httpbind" ) );
         body.addAttribute("type", type);
         body.addAttribute("condition", condition);
         return body.asXML();
@@ -396,7 +398,7 @@ public class HttpBindServlet extends HttpServlet {
     class ReadListenerImpl implements ReadListener {
 
         private final AsyncContext context;
-        private final StringBuilder buffer = new StringBuilder(512);
+        private final ByteArrayOutputStream outStream = new ByteArrayOutputStream(1024);
         private final String remoteAddress;
 
         ReadListenerImpl(AsyncContext context) {
@@ -413,14 +415,14 @@ public class HttpBindServlet extends HttpServlet {
             byte b[] = new byte[1024];
             int length;
             while (inputStream.isReady() && (length = inputStream.read(b)) != -1) {
-                buffer.append(new String(b, 0, length, StandardCharsets.UTF_8));
+                outStream.write(b, 0, length);
             }
         }
 
         @Override
         public void onAllDataRead() throws IOException {
             Log.trace("All data has been read from [" + remoteAddress + "]");
-            processContent(context, buffer.toString());
+            processContent(context, outStream.toString(StandardCharsets.UTF_8.name()));
         }
 
         @Override

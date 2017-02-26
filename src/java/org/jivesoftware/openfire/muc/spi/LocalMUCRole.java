@@ -1,8 +1,4 @@
 /**
- * $RCSfile: LocalMUCRole.java,v $
- * $Revision: 3168 $
- * $Date: 2005-12-07 13:55:47 -0300 (Wed, 07 Dec 2005) $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -162,10 +158,7 @@ public class LocalMUCRole implements MUCRole {
         }
         this.presence = newPresence;
         this.presence.setFrom(getRoleAddress());
-        if (extendedInformation != null) {
-            Element exi = extendedInformation.createCopy();
-            presence.getElement().add(exi);
-        }
+        updatePresence();
     }
 
     @Override
@@ -291,8 +284,21 @@ public class LocalMUCRole implements MUCRole {
         ElementUtil.setProperty(extendedInformation, "x.item:jid", user.getAddress().toString());
         ElementUtil.setProperty(extendedInformation, "x.item:affiliation", affiliation.toString());
         ElementUtil.setProperty(extendedInformation, "x.item:role", role.toString());
+        updatePresence();
     }
 
+    private void updatePresence() {
+        if (extendedInformation != null && presence != null) {
+            // Remove any previous extendedInformation, then re-add it.
+            Element mucUser = presence.getElement().element(QName.get("x", "http://jabber.org/protocol/muc#user"));
+            if (mucUser != null) {
+                // Remove any previous extendedInformation, then re-add it.
+                presence.getElement().remove(mucUser);
+            }
+            Element exi = extendedInformation.createCopy();
+            presence.getElement().add(exi);
+        }
+    }
 
 	@Override
 	public int hashCode() {

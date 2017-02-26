@@ -1,8 +1,4 @@
 /**
- * $RCSfile: $
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +16,6 @@
 package org.jivesoftware.openfire.session;
 
 import java.io.IOException;
-import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -36,7 +31,6 @@ import org.jivesoftware.openfire.SessionManager;
 import org.jivesoftware.openfire.StreamID;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
-import org.jivesoftware.openfire.keystore.CertificateStoreManager;
 import org.jivesoftware.openfire.net.SASLAuthentication;
 import org.jivesoftware.openfire.net.SocketConnection;
 import org.jivesoftware.openfire.server.ServerDialback;
@@ -114,7 +108,12 @@ public class LocalIncomingServerSession extends LocalServerSession implements In
                 
         String version = xpp.getAttributeValue("", "version");
         String fromDomain = xpp.getAttributeValue("", "from");
+        String toDomain = xpp.getAttributeValue("", "to");
         int[] serverVersion = version != null ? decodeVersion(version) : new int[] {0,0};
+
+        if (toDomain == null) {
+            toDomain = serverName;
+        }
         
         try {
             // Get the stream ID for the new session
@@ -129,7 +128,7 @@ public class LocalIncomingServerSession extends LocalServerSession implements In
             openingStream.append(" xmlns:db=\"jabber:server:dialback\"");
             openingStream.append(" xmlns:stream=\"http://etherx.jabber.org/streams\"");
             openingStream.append(" xmlns=\"jabber:server\"");
-            openingStream.append(" from=\"").append(serverName).append("\"");
+            openingStream.append(" from=\"").append(toDomain).append("\"");
             if (fromDomain != null) {
                 openingStream.append(" to=\"").append(fromDomain).append("\"");
             }
@@ -149,9 +148,7 @@ public class LocalIncomingServerSession extends LocalServerSession implements In
                 // Remote server is XMPP 1.0 compliant so offer TLS and SASL to establish the connection (and server dialback)
 
 	            // Indicate the TLS policy to use for this connection
-	            Connection.TLSPolicy tlsPolicy =
-	                    ServerDialback.isEnabled() ? Connection.TLSPolicy.optional :
-	                            Connection.TLSPolicy.required;
+	            Connection.TLSPolicy tlsPolicy = connection.getTlsPolicy();
 	            boolean hasCertificates = false;
 	            try {
 	                hasCertificates = XMPPServer.getInstance().getCertificateStoreManager().getIdentityStore( ConnectionType.SOCKET_S2S ).getStore().size() > 0;
@@ -371,8 +368,7 @@ public class LocalIncomingServerSession extends LocalServerSession implements In
         	usingSelfSigned = true;
         } else {
         	try {
-                final KeyStore keyStore = XMPPServer.getInstance().getCertificateStoreManager().getIdentityStore( ConnectionType.SOCKET_S2S ).getStore();
-				usingSelfSigned = CertificateManager.isSelfSignedCertificate(keyStore, (X509Certificate) chain[0]);
+				usingSelfSigned = CertificateManager.isSelfSignedCertificate((X509Certificate) chain[0]);
 			} catch (KeyStoreException ex) {
 				Log.warn("Exception occurred while trying to determine whether local certificate is self-signed. Proceeding as if it is.", ex);
 				usingSelfSigned = true;

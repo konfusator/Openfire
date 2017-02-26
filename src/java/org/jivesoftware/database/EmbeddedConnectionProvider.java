@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision$
- * $Date$
- *
  * Copyright (C) 2004-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,7 +46,6 @@ public class EmbeddedConnectionProvider implements ConnectionProvider {
     private String proxoolURL;
 
     public EmbeddedConnectionProvider() {
-        System.setProperty("org.apache.commons.logging.LogFactory", "org.jivesoftware.util.log.util.CommonsLogFactory");
     }
 
     @Override

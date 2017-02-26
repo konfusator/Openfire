@@ -1,8 +1,4 @@
 /**
- * $RCSfile: IQRouter.java,v $
- * $Revision: 3135 $
- * $Date: 2005-12-01 02:03:04 -0300 (Thu, 01 Dec 2005) $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -442,6 +438,16 @@ public class IQRouter extends BasicModule {
         }
         // Route the error packet to the original sender of the IQ.
         routingTable.routePacket(reply.getTo(), reply, true);
+    }
+
+    /**
+     * Determines if this instance has support (formally: has a IQ Handler) for the provided namespace.
+     *
+     * @param namespace Identifier of functionality (cannot be null)
+     * @return true if the functionality identified by the namespace is supported, otherwise false.
+     */
+    public boolean supports( String namespace ) {
+        return getHandler( namespace ) != null;
     }
 
     private IQHandler getHandler(String namespace) {

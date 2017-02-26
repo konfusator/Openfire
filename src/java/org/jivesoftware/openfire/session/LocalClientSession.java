@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision: 3187 $
- * $Date: 2005-12-11 13:34:34 -0300 (Sun, 11 Dec 2005) $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -883,7 +879,9 @@ public class LocalClientSession extends LocalSession implements ClientSession {
 
         if (getAuthToken() == null) {
             // Advertise that the server supports Non-SASL Authentication
-            sb.append("<auth xmlns=\"http://jabber.org/features/iq-auth\"/>");
+            if ( XMPPServer.getInstance().getIQRouter().supports( "jabber:iq:auth" ) ) {
+                sb.append("<auth xmlns=\"http://jabber.org/features/iq-auth\"/>");
+            }
             // Advertise that the server supports In-Band Registration
             if (XMPPServer.getInstance().getIQRegisterHandler().isInbandRegEnabled()) {
                 sb.append("<register xmlns=\"http://jabber.org/features/iq-register\"/>");

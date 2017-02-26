@@ -1,7 +1,4 @@
 /**
- * $Revision$
- * $Date$
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +15,7 @@
  */
 package org.jivesoftware.openfire.muc;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -855,7 +853,18 @@ public class MultiUserChatManager extends BasicModule implements ClusterEventLis
 
     @Override
     public void leftCluster(byte[] nodeID) {
-        // Do nothing. An unavailable presence will be created for occupants hosted in the leaving cluster node.
+        // Remove all room occupants linked to the defunct node as their sessions are cleaned out earlier
+        Log.debug("Removing orphaned occupants associated with defunct node: " +  new String(nodeID, StandardCharsets.UTF_8));
+
+        for (MultiUserChatService service : getMultiUserChatServices()) {
+            for (MUCRoom mucRoom : service.getChatRooms()) {
+                for (MUCRole mucRole : mucRoom.getOccupants()) {
+                    if (mucRole.getNodeID().equals(nodeID)) {
+                        mucRoom.leaveRoom(mucRole);
+                    }
+                }
+            }
+        }
     }
 
     @Override

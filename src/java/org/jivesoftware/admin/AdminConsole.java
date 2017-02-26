@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision$
- * $Date$
- *
  * Copyright (C) 2004-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -87,7 +83,7 @@ public class AdminConsole {
      * @param element the Element
      * @throws Exception if an error occurs.
      */
-    public static void addModel(String name, Element element) throws Exception {
+    public static synchronized void addModel(String name, Element element) throws Exception {
         overrideModels.put(name, element);
         rebuildModel();
     }
@@ -97,7 +93,7 @@ public class AdminConsole {
      *
      * @param name the name.
      */
-    public static void removeModel(String name) {
+    public static synchronized void removeModel(String name) {
         overrideModels.remove(name);
         rebuildModel();
     }

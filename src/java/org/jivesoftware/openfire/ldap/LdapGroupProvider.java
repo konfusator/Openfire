@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision: 3191 $
- * $Date: 2005-12-12 13:41:22 -0300 (Mon, 12 Dec 2005) $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -226,8 +222,12 @@ public class LdapGroupProvider extends AbstractGroupProvider {
         Pattern pattern =
                 Pattern.compile("(?i)(^" + manager.getUsernameField() + "=)([^,]+)(.+)");
 
+        // We have to process Active Directory differently.
+        boolean isAD = manager.getUsernameField().equals("sAMAccountName");
+        String[] returningAttributes = isAD ? new String[] { "distinguishedName", manager.getUsernameField() } : new String[] { manager.getUsernameField() };
+        
         SearchControls searchControls = new SearchControls();
-        searchControls.setReturningAttributes(new String[] { "distinguishedName", manager.getUsernameField() });
+        searchControls.setReturningAttributes(returningAttributes);
         // See if recursive searching is enabled. Otherwise, only search one level.
         if (manager.isSubTreeSearch()) {
             searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
@@ -289,9 +289,16 @@ public class LdapGroupProvider extends AbstractGroupProvider {
                                 while(usrAnswer.hasMoreElements()) {
                                     searchResult = (SearchResult) usrAnswer.nextElement();
                                     Attributes attrs = searchResult.getAttributes();
-                                    Attribute userdnAttr = attrs.get("distinguishedName");
-                                    if (username.equals((String)userdnAttr.get())) {
-                                        // Exact match found, use it.
+                                    if (isAD) {
+                                        Attribute userdnAttr = attrs.get("distinguishedName");
+                                        if (username.equals((String)userdnAttr.get())) {
+                                            // Exact match found, use it.
+                                            username = (String)attrs.get(manager.getUsernameField()).get();
+                                            break;
+                                        }
+                                    }
+                                    else {
+                                        // No iteration occurs here, which is probably a bug.
                                         username = (String)attrs.get(manager.getUsernameField()).get();
                                         break;
                                     }

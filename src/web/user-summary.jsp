@@ -1,7 +1,4 @@
 <%--
-  -	$RCSfile$
-  -	$Revision$
-  -	$Date$
   -
   - Copyright (C) 2004-2008 Jive Software. All rights reserved.
   -
@@ -261,7 +258,7 @@
             %>
         </td>
         <td width="12%">
-            <%= JiveGlobals.formatDate(user.getCreationDate()) %>
+            <%= user.getCreationDate() != null ? JiveGlobals.formatDate(user.getCreationDate()) : "&nbsp;" %>
         </td>
         <td width="23%">
             <% long logoutTime = presenceManager.getLastActivity(user);

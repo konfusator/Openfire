@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,7 +47,7 @@ public class IQPrivacyHandler extends IQHandler
 
     private IQHandlerInfo info;
     private PrivacyListManager manager = PrivacyListManager.getInstance();
-    private PrivacyListProvider provider = new PrivacyListProvider();
+    private PrivacyListProvider provider = PrivacyListProvider.getInstance();
 
     public IQPrivacyHandler() {
         super("Blocking Communication Handler");

@@ -1,7 +1,4 @@
 /**
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2007-2009 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +16,7 @@
 
 package org.jivesoftware.openfire.plugin.session;
 
+import org.jivesoftware.openfire.StreamID;
 import org.jivesoftware.openfire.session.*;
 import org.xmpp.packet.JID;
 
@@ -43,7 +41,7 @@ public class RemoteSessionLocator implements org.jivesoftware.openfire.session.R
         return new RemoteConnectionMultiplexerSession(nodeID, address);
     }
 
-    public IncomingServerSession getIncomingServerSession(byte[] nodeID, String streamID) {
+    public IncomingServerSession getIncomingServerSession(byte[] nodeID, StreamID streamID) {
         return new RemoteIncomingServerSession(nodeID, streamID);
     }
 

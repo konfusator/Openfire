@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision: 1217 $
- * $Date: 2005-04-11 18:11:06 -0300 (Mon, 11 Apr 2005) $
- *
  * Copyright (C) 2004-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -107,7 +103,9 @@ public class UserManager implements IQResultListener {
 
             @Override
             public void propertyDeleted(String property, Map params) {
-                //Ignore
+                if ("provider.user.className".equals(property)) {
+                    initProvider();
+                }
             }
 
             @Override

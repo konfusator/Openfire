@@ -1,8 +1,4 @@
 /**
- * $RCSfile: $
- * $Revision: $
- * $Date: $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,6 +37,8 @@ import org.jivesoftware.openfire.disco.DiscoInfoProvider;
 import org.jivesoftware.openfire.disco.DiscoItem;
 import org.jivesoftware.openfire.disco.DiscoItemsProvider;
 import org.jivesoftware.openfire.disco.DiscoServerItem;
+import org.jivesoftware.openfire.disco.IQDiscoInfoHandler;
+import org.jivesoftware.openfire.disco.IQDiscoItemsHandler;
 import org.jivesoftware.openfire.disco.ServerItemsProvider;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.pubsub.models.PublisherModel;
@@ -134,6 +132,15 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
     private RoutingTable routingTable = null;
 
     /**
+     * The disco info handler for this module
+     */
+    private IQDiscoInfoHandler iqDiscoInfoHandler = null;
+   /**
+    * The disco items handler for this module
+    */ 
+    private IQDiscoItemsHandler iqDiscoItemsHandler = null;
+
+    /**
      * Default configuration to use for newly created leaf nodes.
      */
     private DefaultNodeConfiguration leafDefaultConfiguration;
@@ -187,6 +194,10 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         }
     }
 
+    private void sendServiceUnavailablePacket(IQ iq) {
+        engine.sendErrorPacket(iq, PacketError.Condition.service_unavailable, null);
+    }
+
     private void process(IQ iq) {
         // Ignore IQs of type ERROR
         if (IQ.Type.error == iq.getType()) {
@@ -199,20 +210,27 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
             namespace = childElement.getNamespaceURI();
         }
         if ("http://jabber.org/protocol/disco#info".equals(namespace)) {
-            // TODO PubSub should have an IQDiscoInfoHandler of its own when PubSub becomes
-            // a component
-            IQ reply = XMPPServer.getInstance().getIQDiscoInfoHandler().handleIQ(iq);
-            router.route(reply);
+            if (iqDiscoInfoHandler != null) {
+                IQ reply = iqDiscoInfoHandler.handleIQ(iq);
+                router.route(reply);
+            } else {
+                sendServiceUnavailablePacket(iq);
+                return;
+            }
         }
         else if ("http://jabber.org/protocol/disco#items".equals(namespace)) {
-            // TODO PubSub should have an IQDiscoItemsHandler of its own when PubSub becomes
-            // a component
-            IQ reply = XMPPServer.getInstance().getIQDiscoItemsHandler().handleIQ(iq);
-            router.route(reply);
+            if (iqDiscoItemsHandler != null) {
+                IQ reply = iqDiscoItemsHandler.handleIQ(iq);
+                router.route(reply);
+            } else {
+                sendServiceUnavailablePacket(iq);
+                return;
+            }
+            
         }
         else {
             // Unknown namespace requested so return error to sender
-            engine.sendErrorPacket(iq, PacketError.Condition.service_unavailable, null);
+            sendServiceUnavailablePacket(iq);
         }
     }
 
@@ -358,6 +376,8 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         // Listen to property events so that the template is always up to date
         PropertyEventDispatcher.addListener(this);
 
+        setIQDiscoItemsHandler(XMPPServer.getInstance().getIQDiscoItemsHandler());
+        setIQDiscoInfoHandler(XMPPServer.getInstance().getIQDiscoInfoHandler());
         serviceEnabled = JiveGlobals.getBooleanProperty("xmpp.pubsub.enabled", true);
         serviceName = JiveGlobals.getProperty("xmpp.pubsub.service");
         if (serviceName == null) {
@@ -403,7 +423,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
             leafDefaultConfiguration.setNotifyDelete(true);
             leafDefaultConfiguration.setNotifyRetract(true);
             leafDefaultConfiguration.setPersistPublishedItems(false);
-            leafDefaultConfiguration.setMaxPublishedItems(-1);
+            leafDefaultConfiguration.setMaxPublishedItems(1);
             leafDefaultConfiguration.setPresenceBasedDelivery(false);
             leafDefaultConfiguration.setSendItemSubscribe(true);
             leafDefaultConfiguration.setSubscriptionEnabled(true);
@@ -480,15 +500,24 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         engine.shutdown(this);
     }
 
+    public void setIQDiscoItemsHandler(IQDiscoItemsHandler iqDiscoItemsHandler) {
+        this.iqDiscoItemsHandler = iqDiscoItemsHandler;
+    }
+    
+    public void setIQDiscoInfoHandler(IQDiscoInfoHandler iqDiscoInfoHandler) {
+        this.iqDiscoInfoHandler = iqDiscoInfoHandler ;
+    }
+
     private void enableService(boolean enabled) {
         if (serviceEnabled == enabled) {
             // Do nothing if the service status has not changed
             return;
         }
-        XMPPServer server = XMPPServer.getInstance();
         if (!enabled) {
             // Disable disco information
-            server.getIQDiscoItemsHandler().removeServerItemsProvider(this);
+            if (iqDiscoItemsHandler != null) {
+                iqDiscoItemsHandler.removeServerItemsProvider(this);
+            }
             // Stop the service/module
             stop();
         }
@@ -497,7 +526,9 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
             // Start the service/module
             start();
             // Enable disco information
-            server.getIQDiscoItemsHandler().addServerItemsProvider(this);
+            if (iqDiscoItemsHandler != null) {
+                iqDiscoItemsHandler.addServerItemsProvider(this);
+            }
         }
     }
 

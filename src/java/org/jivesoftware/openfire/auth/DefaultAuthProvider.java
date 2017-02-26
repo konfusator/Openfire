@@ -1,8 +1,4 @@
 /**
- * $RCSfile$
- * $Revision: 1116 $
- * $Date: 2005-03-10 20:18:08 -0300 (Thu, 10 Mar 2005) $
- *
  * Copyright (C) 2004-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -55,7 +51,7 @@ public class DefaultAuthProvider implements AuthProvider {
 	    private static final String LOAD_PASSWORD =
 	            "SELECT plainPassword,encryptedPassword FROM ofUser WHERE username=?";
 	    private static final String TEST_PASSWORD =
-	            "SELECT plainPassword,encryptedPassword,iterations,salt,storedKey FROM ofUser WHERE username=?";
+	            "SELECT plainPassword,encryptedPassword,iterations,salt,storedKey,serverKey FROM ofUser WHERE username=?";
     private static final String UPDATE_PASSWORD =
             "UPDATE ofUser SET plainPassword=?, encryptedPassword=?, storedKey=?, serverKey=?, salt=?, iterations=? WHERE username=?";
     
@@ -66,6 +62,92 @@ public class DefaultAuthProvider implements AuthProvider {
      */
     public DefaultAuthProvider() {
 
+    }
+
+    private class UserInfo {
+        String plainText;
+        String encrypted;
+        int iterations;
+        String salt;
+        String storedKey;
+        String serverKey;
+    }
+
+    private UserInfo getUserInfo(String username) throws UnsupportedOperationException, UserNotFoundException {
+        return getUserInfo(username, false);
+    }
+    private UserInfo getUserInfo(String username, boolean recurse) throws UnsupportedOperationException, UserNotFoundException {
+        if (!isScramSupported()) {
+            // Reject the operation since the provider  does not support SCRAM
+            throw new UnsupportedOperationException();
+        }
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            con = DbConnectionManager.getConnection();
+            pstmt = con.prepareStatement(TEST_PASSWORD);
+            pstmt.setString(1, username);
+            rs = pstmt.executeQuery();
+            if (!rs.next()) {
+                throw new UserNotFoundException(username);
+            }
+            UserInfo userInfo = new UserInfo();
+            userInfo.plainText = rs.getString(1);
+            userInfo.encrypted = rs.getString(2);
+            userInfo.iterations = rs.getInt(3);
+            userInfo.salt = rs.getString(4);
+            userInfo.storedKey = rs.getString(5);
+            userInfo.serverKey = rs.getString(6);
+            if (userInfo.encrypted != null) {
+                try {
+                    userInfo.plainText = AuthFactory.decryptPassword(userInfo.encrypted);
+                }
+                catch (UnsupportedOperationException uoe) {
+                    // Ignore and return plain password instead.
+                }
+            }
+            if (!recurse) {
+                if (userInfo.plainText != null) {
+                    boolean scramOnly = JiveGlobals.getBooleanProperty("user.scramHashedPasswordOnly");
+                    if (scramOnly || userInfo.salt == null) {
+                        // If we have a password here, but we're meant to be scramOnly, we should reset it.
+                        setPassword(username, userInfo.plainText);
+                        // RECURSE
+                        return getUserInfo(username, true);
+                    }
+                }
+            }
+            // Good to go.
+            return userInfo;
+        }
+        catch (SQLException sqle) {
+            Log.error("User SQL failure:", sqle);
+            throw new UserNotFoundException(sqle);
+        }
+        finally {
+            DbConnectionManager.closeConnection(rs, pstmt, con);
+        }
+    }
+
+    @Override
+    public String getSalt(String username) throws UserNotFoundException {
+        return getUserInfo(username).salt;
+    }
+
+    @Override
+    public int getIterations(String username) throws UserNotFoundException {
+        return getUserInfo(username).iterations;
+    }
+
+    @Override
+    public String getStoredKey(String username) throws UserNotFoundException {
+        return getUserInfo(username).storedKey;
+    }
+
+    @Override
+    public String getServerKey(String username) throws UserNotFoundException {
+        return getUserInfo(username).serverKey;
     }
 
     @Override
@@ -94,47 +176,6 @@ public class DefaultAuthProvider implements AuthProvider {
             throw new UnauthorizedException();
         }
         // Got this far, so the user must be authorized.
-    }
-
-    @Override
-    public void authenticate(String username, String token, String digest) throws UnauthorizedException {
-        if (username == null || token == null || digest == null) {
-            throw new UnauthorizedException();
-        }
-        username = username.trim().toLowerCase();
-        if (username.contains("@")) {
-            // Check that the specified domain matches the server's domain
-            int index = username.indexOf("@");
-            String domain = username.substring(index + 1);
-            if (domain.equals(XMPPServer.getInstance().getServerInfo().getXMPPDomain())) {
-                username = username.substring(0, index);
-            } else {
-                // Unknown domain. Return authentication failed.
-                throw new UnauthorizedException();
-            }
-        }
-        try {
-            String password = getPassword(username);
-            String anticipatedDigest = AuthFactory.createDigest(token, password);
-            if (!digest.equalsIgnoreCase(anticipatedDigest)) {
-                throw new UnauthorizedException();
-            }
-        }
-        catch (UserNotFoundException unfe) {
-            throw new UnauthorizedException();
-        }
-        // Got this far, so the user must be authorized.
-    }
-
-    @Override
-    public boolean isPlainSupported() {
-        return true;
-    }
-
-    @Override
-    public boolean isDigestSupported() {
-        boolean scramOnly = JiveGlobals.getBooleanProperty("user.scramHashedPasswordOnly");
-        return !scramOnly;
     }
 
     @Override

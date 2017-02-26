@@ -43,22 +43,9 @@ public class CrowdAuthProvider implements AuthProvider {
 		}
 	}
 
-	@Override
-	public boolean isPlainSupported() {
-		return true;
-	}
-
-	@Override
-	public boolean isDigestSupported() {
-		return false;
-	}
-
     /**
      * Returns if the username and password are valid; otherwise this
      * method throws an UnauthorizedException.<p>
-     *
-     * If {@link #isPlainSupported()} returns false, this method should
-     * throw an UnsupportedOperationException.
      *
      * @param username the username or full JID.
      * @param password the password
@@ -97,11 +84,6 @@ public class CrowdAuthProvider implements AuthProvider {
 	}
 
 	@Override
-	public void authenticate(String username, String token, String digest) throws UnauthorizedException, ConnectionException, InternalUnauthenticatedException {
-		throw new UnsupportedOperationException("XMPP digest authentication not supported by this version of authentication provider");
-	}
-
-	@Override
 	public String getPassword(String username) throws UserNotFoundException, UnsupportedOperationException {
 		throw new UnsupportedOperationException("Retrieve password not supported by this version of authentication provider");
 	}
@@ -122,4 +104,24 @@ public class CrowdAuthProvider implements AuthProvider {
         return false;
     }
 
+
+	@Override
+	public String getSalt(String username) throws UnsupportedOperationException, UserNotFoundException {
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public int getIterations(String username) throws UnsupportedOperationException, UserNotFoundException {
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public String getServerKey(String username) throws UnsupportedOperationException, UserNotFoundException {
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public String getStoredKey(String username) throws UnsupportedOperationException, UserNotFoundException {
+		throw new UnsupportedOperationException();
+	}
 }

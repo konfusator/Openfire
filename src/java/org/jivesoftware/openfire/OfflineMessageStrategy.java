@@ -1,8 +1,4 @@
 /**
- * $RCSfile: OfflineMessageStrategy.java,v $
- * $Revision: 3114 $
- * $Date: 2005-11-23 18:12:54 -0300 (Wed, 23 Nov 2005) $
- *
  * Copyright (C) 2005-2008 Jive Software. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -99,6 +95,7 @@ public class OfflineMessageStrategy extends BasicModule implements ServerFeature
             if (list != null && list.shouldBlockPacket(message)) {
                 Message result = message.createCopy();
                 result.setTo(message.getFrom());
+                result.setFrom(message.getTo());
                 result.setError(PacketError.Condition.service_unavailable);
                 XMPPServer.getInstance().getRoutingTable().routePacket(message.getFrom(), result, true);
                 return;
@@ -148,12 +145,15 @@ public class OfflineMessageStrategy extends BasicModule implements ServerFeature
                     store(message);
                 }
                 else {
+                    Log.debug( "Unable to store, as user is over storage quota. Bouncing message instead: " + message.toXML() );
                     bounce(message);
                 }
                 break;
             case store_and_drop:
                 if (underQuota(message)) {
                     store(message);
+                } else {
+                    Log.debug( "Unable to store, as user is over storage quota. Silently dropping message: " + message.toXML() );
                 }
                 break;
             case drop:
@@ -200,7 +200,7 @@ public class OfflineMessageStrategy extends BasicModule implements ServerFeature
 
     private void bounce(Message message) {
         // Do nothing if the sender was the server itself
-        if (message.getFrom() == null) {
+        if (message.getFrom() == null || message.getFrom().equals( serverAddress )) {
             return;
         }
         try {
